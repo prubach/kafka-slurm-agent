@@ -1,0 +1,29 @@
+from os.path import expanduser, join
+
+PREFIX = join(expanduser("~"), 'my_kafka_slurm')
+DEBUG = True
+CLUSTER_NAME = 'my_cluster'
+CLUSTER_AGENT_CLASS = 'modules.cluster.MyClusterAgent'
+BOOTSTRAP_SERVERS = 'localhost:9092'
+KAFKA_SECURITY_PROTOCOL = 'SASL_PLAINTEXT'
+KAFKA_SASL_MECHANISM = 'PLAIN'
+KAFKA_USERNAME = 'user'
+KAFKA_PASSWORD = 'pass'
+TOPIC_NEW = 'kp-new'
+TOPIC_STATUS = 'kp-jobs'
+TOPIC_DONE = 'kp-done'
+TOPIC_ERROR = 'kp-error'
+CLUSTER_AGENT_NEW_GROUP = 'agent_new'
+
+#POLL_INTERVAL = 20.0,
+MONITOR_AGENT_URL = 'http://localhost:6066/'
+MONITOR_AGENT_CONTEXT_PATH ='/mon/'
+LOGS_DIR = PREFIX + '/logs'
+
+SLURM_PARTITION ='long'
+# SLURM_MEM = '15gb'            # MEMORY REQUIRED FOR SLURM JOB
+SLURM_JOB_TYPE = 'gpu'  # GPU, CPU
+SLURM_RESOURCES_REQUIRED = 1  # #OF CPUS OR GPUS PER JOB
+SLURM_MAX_RUNNING = 6
+
+PROCESS_ERRORS = True
