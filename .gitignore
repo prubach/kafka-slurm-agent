@@ -6,4 +6,4 @@ dane
 logs/
 _skbuild
 dist
-*.egginfo
+*.egg-info
