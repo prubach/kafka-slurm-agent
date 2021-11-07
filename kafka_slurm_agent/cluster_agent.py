@@ -1,17 +1,16 @@
 import ast
+import os
+
 import faust
+import sys
 from pydoc import locate
 from kafka_slurm_agent.kafka_modules import config
 from concurrent.futures import ThreadPoolExecutor
 
-
 app = faust.App(config['CLUSTER_NAME'] + '_cluster_agent',
                 group_id=1,
                 broker='kafka://' + config['BOOTSTRAP_SERVERS'],
-                broker_credentials=faust.SASLCredentials(
-                        username=config['KAFKA_USERNAME'],
-                        password=config['KAFKA_PASSWORD'],
-                    ),
+                broker_credentials=config['KAFKA_FAUST_BROKER_CREDENTIALS'],
                 processing_guarantee='exactly_once',
                 broker_max_poll_records=20,
                 transaction_timeout_ms=120000,
@@ -21,6 +20,7 @@ jobs_topic = app.topic(config['TOPIC_STATUS'], partitions=1)
 job_status = app.Table('job_status', default='')
 
 thread_pool = ThreadPoolExecutor(max_workers=1)
+sys.path.append(os.getcwd())
 ca_class = locate(config['CLUSTER_AGENT_CLASS'])
 ca = ca_class()
 

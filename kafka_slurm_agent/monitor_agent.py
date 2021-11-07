@@ -1,10 +1,8 @@
 import socket
 import faust
 
-from kafka_slurm_agent.kafka_modules import setupLogger
-from kafka_slurm_agent.kafka_modules import config
+from kafka_slurm_agent.kafka_modules import setupLogger, config
 from kafka_slurm_agent.command import Command
-
 
 app = faust.App(socket.gethostname() + '_monitor_agent_new',
                 group_id=1,

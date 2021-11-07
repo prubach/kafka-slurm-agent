@@ -18,6 +18,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/prubach/kafka-slurm-agent",
     packages=find_packages(),
+    #package_data={
     data_files={
         "kafkaslurm_cfg.py__"
     },

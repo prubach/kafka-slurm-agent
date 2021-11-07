@@ -22,22 +22,42 @@ CONFIG_FILE = 'kafkaslurm_cfg.py'
 
 config_defaults = {
     'CLUSTER_NAME': 'my_cluster',
-    'POLL_INTERVAL': 20.0,
+    'POLL_INTERVAL': 30.0,
     'BOOTSTRAP_SERVERS': 'localhost:9092',
     'MONITOR_AGENT_URL': 'http://localhost:6066/',
-    'PREFIX': 'kafka_slurm_agent'
+    'PREFIX': 'kafka_slurm_agent',
+    'KAFKA_FAUST_BROKER_CREDENTIALS': None,
+    'KAFKA_SECURITY_PROTOCOL': None,
+    'KAFKA_SASL_MECHANISM': None,
+    'KAFKA_USERNAME': None,
+    'KAFKA_PASSWORD': None
 }
 
-rootpath = expanduser('~')
-if not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)):
-    rootpath = os.path.abspath(os.path.dirname(__file__))
-    while not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)) and rootpath != os.path.abspath(os.sep):
-        rootpath = os.path.abspath(os.path.dirname(rootpath))
-if not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)):
-    print('{} configuration file not found in home folder or any parent folders of where the app is installed!'.format(CONFIG_FILE))
-    sys.exit(-1)
-config = Config(root_path=rootpath, defaults=config_defaults)
-config.from_pyfile(CONFIG_FILE)
+
+class ConfigLoader:
+    def __init__(self):
+        self.config = None
+
+    def get(self):
+        if not self.config:
+            self.load_config()
+        return self.config
+
+    def load_config(self):
+        rootpath = expanduser('~')
+        if not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)):
+            rootpath = os.path.abspath(os.path.dirname(__file__))
+            while not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)) and rootpath != os.path.abspath(os.sep):
+                rootpath = os.path.abspath(os.path.dirname(rootpath))
+        if not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)):
+            print(
+                '{} configuration file not found in home folder or any parent folders of where the app is installed!'.format(
+                    CONFIG_FILE))
+            sys.exit(-1)
+        self.config = Config(root_path=rootpath, defaults=config_defaults)
+        self.config.from_pyfile(CONFIG_FILE)
+
+config = ConfigLoader().get()
 
 
 def setupLogger(directory, name, file_name=None):
