@@ -5,4 +5,4 @@ def test_cmd():
     cmd = Command('uname')
     cmd.run(10)
     res = cmd.getOut()
-    assert res == 'Linux'
+    assert res == 'Linux\n'
