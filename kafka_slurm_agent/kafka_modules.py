@@ -189,6 +189,7 @@ class ClusterAgent:
                                  group_id=config['CLUSTER_AGENT_NEW_GROUP'],
                                  value_deserializer=lambda x: json.loads(x.decode('utf-8')))
         self.stat_send = StatusSender()
+        self.script_name = None
         self.logger = setupLogger(config['LOGS_DIR'], "clusteragent")
         self.logger.info('Cluster Agent Started')
         self.job_name_suffix = '_CLAG'
@@ -202,14 +203,13 @@ class ClusterAgent:
         return os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
 
     def get_job_type(self, slurm_pars):
-        return config['SLURM_JOB_TYPE']
+        return slurm_pars['JOB_TYPE'] if slurm_pars and 'JOB_TYPE' in slurm_pars else config['SLURM_JOB_TYPE']
 
     def is_job_gpu(self, slurm_pars):
-        return slurm_pars['JOB_TYPE']
-        #return self.get_job_type(input_job_id) == 'gpu'
+        return self.get_job_type(slurm_pars) == 'gpu'
 
     def check_queue_submit(self):
-        func_name = 'self.slurm_get_idle_' + self.get_job_type('') + 's'
+        func_name = 'self.slurm_get_idle_' + self.get_job_type(None) + 's'
         free = eval(func_name + "()")
         self.logger.info('Free {}s: {}'.format(config['SLURM_JOB_TYPE'].upper(), free))
         w = self.slurm_check_jobs_waiting()
@@ -240,9 +240,11 @@ class ClusterAgent:
             return None, None
 
     def submit_slurm_job(self, input_job_id, script, slurm_params):
+        if not script:
+            script = self.script_name
         job_name = self.get_job_name(input_job_id)
         prefix = config['PREFIX']
-        slurm_pars = {'cpus_per_task': slurm_params['RESOURCES_REQUIRED'],
+        slurm_pars = {'cpus_per_task': slurm_params['RESOURCES_REQUIRED'] if slurm_params and 'RESOURCES_REQUIRED' in slurm_params else config['SLURM_RESOURCES_REQUIRED'],
                       'job_name': job_name,
                       'partition': config['SLURM_PARTITION'],
                       'output': f'{prefix}slurm/{job_name}-{Slurm.JOB_ARRAY_MASTER_ID}.out'
