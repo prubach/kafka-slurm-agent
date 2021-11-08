@@ -7,7 +7,7 @@ from kafka_slurm_agent.command import Command
 CONFIG_FILE = 'kafkaslurm_cfg.py__'
 
 SCRIPTS = {
-    'start_cluster_agent': '#!/bin/bash\nfaust -A kafka_slurm_agent.cluster_agent -l info worker',
+    'start_cluster_agent': '#!/bin/bash\nfaust -A kafka_slurm_agent.cluster_agent -l info worker\n',
     'my_monitor_agent.py': "from kafka_slurm_agent.monitor_agent import app, job_status, done_topic\n\n"
                         "#TODO Put your monitor agent code here\n\n\n"
                         "@app.agent(done_topic)\n"
@@ -22,7 +22,7 @@ SCRIPTS = {
                            "\t\tself.job_name_suffix = '_MYJOBS'\n\n"
                            "\tdef get_job_name(self, input_job_id):\n"
                            "\t\treturn str(input_job_id) + self.job_name_suffix\n",
-    'start_monitor_agent': '#!/bin/bash\nfaust -A my_monitor_agent -l info worker'
+    'start_monitor_agent': '#!/bin/bash\nfaust -A my_monitor_agent -l info worker -p 6067\n'
 }
 
 
@@ -57,7 +57,7 @@ class GenerateAction(argparse.Action):
             rootpath = os.path.abspath(os.path.dirname(rootpath))
         shutil.copy(os.path.join(rootpath, CONFIG_FILE), os.path.join(folder, CONFIG_FILE.replace('py__', 'py')))
         with open(os.path.join(folder, CONFIG_FILE.replace('py__', 'py')), 'a') as file_out:
-            file_out.write("PREFIX = ' + os.path.abspath(folder) + '\n")
+            file_out.write("PREFIX = '" + os.path.abspath(folder) + "'\n")
             file_out.write("LOGS_DIR = PREFIX + '/logs'\n")
         for script, content in SCRIPTS.items():
             with open(os.path.join(folder, script), 'w') as file_out:

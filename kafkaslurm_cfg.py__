@@ -18,6 +18,11 @@ TOPIC_DONE = 'kp-done'
 TOPIC_ERROR = 'kp-error'
 CLUSTER_AGENT_NEW_GROUP = 'kp_agent_new'
 
+# / The parameters below are used to run a command directly on Kafka to query for new and waiting jobs
+BOOTSTRAP_SERVERS_LOCAL = 'localhost:9092'
+KAFKA_HOME = '/opt/kafka'
+# /
+
 #POLL_INTERVAL = 20.0,
 MONITOR_AGENT_URL = 'http://localhost:6066/'
 MONITOR_AGENT_CONTEXT_PATH ='/mon/'

@@ -7,10 +7,7 @@ from kafka_slurm_agent.command import Command
 app = faust.App(socket.gethostname() + '_monitor_agent_new',
                 group_id=1,
                 broker='kafka://' + config['BOOTSTRAP_SERVERS'],
-                broker_credentials=faust.SASLCredentials(
-                    username=config['KAFKA_USERNAME'],
-                    password=config['KAFKA_PASSWORD'],
-                ),
+                broker_credentials=config['KAFKA_FAUST_BROKER_CREDENTIALS'],
                 #processing_guarantee='exactly_once',
                 topic_partitions=1)
 
@@ -51,20 +48,21 @@ async def get_stats(web, request):
     })
 
 
-@app.page(config['MONITOR_AGENT_CONTEXT_PATH'] + 'check/{organism}/{struct_id}/')
-async def get_stats(web, request, organism, struct_id):
-    job_id = organism + '/' + struct_id
-    if job_id in job_status:
-        result = job_status[job_id]
+@app.page(config['MONITOR_AGENT_CONTEXT_PATH'] + 'check/{input_job_id}/')
+async def get_stats(web, request, organism, input_job_id):
+    if input_job_id in job_status:
+        result = job_status[input_job_id]
     else:
         result = ''
     return web.json({
-        job_id: result,
+        input_job_id: result,
     })
 
 
 def get_new():
-    cmd = "/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server 172.17.0.1:9092 --describe --group " + config['CLUSTER_AGENT_NEW_GROUP'] + "| grep " + config['TOPIC_NEW'] + "| awk {'printf (\"%s %s %s\\n\", $4, $5, $6)'}"
+    if 'BOOTSTRAP_SEVERS_LOCAL' not in config:
+        config['BOOTSTRAP_SERVERS_LOCAL'] = config['BOOTSTRAP_SERVERS']
+    cmd = config['KAFKA_HOME'] + "/bin/kafka-consumer-groups.sh --bootstrap-server " + config['BOOTSTRAP_SERVERS_LOCAL'] + " --describe --group " + config['CLUSTER_AGENT_NEW_GROUP'] + "| grep " + config['TOPIC_NEW'] + "| awk {'printf (\"%s %s %s\\n\", $4, $5, $6)'}"
     comd = Command(cmd)
     comd.run(10)
     res = comd.getOut()

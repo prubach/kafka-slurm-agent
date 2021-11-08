@@ -49,14 +49,14 @@ async def check_statuses(app):
     app.loop.run_in_executor(executor=thread_pool, func=run_cluster_agent_check)
 
 
-@app.page('/stats/')
-async def get_stat(web, request):
-    statuses = {}
-    for key in job_status.keys():
-        statuses[key] = job_status[key]
-    return web.json({
-        'result': statuses,
-    })
+# @app.page('/stats/')
+# async def get_stat(web, request):
+#     statuses = {}
+#     for key in job_status.keys():
+#         statuses[key] = job_status[key]
+#     return web.json({
+#         'result': statuses,
+#     })
 
 
 if __name__ == '__main__':

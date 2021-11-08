@@ -27,7 +27,7 @@ config_defaults = {
     'MONITOR_AGENT_URL': 'http://localhost:6066/',
     'PREFIX': 'kafka_slurm_agent',
     'KAFKA_FAUST_BROKER_CREDENTIALS': None,
-    'KAFKA_SECURITY_PROTOCOL': None,
+    'KAFKA_SECURITY_PROTOCOL': 'PLAINTEXT',
     'KAFKA_SASL_MECHANISM': None,
     'KAFKA_USERNAME': None,
     'KAFKA_PASSWORD': None
@@ -80,7 +80,7 @@ class ClusterComputing:
         self.ss = StatusSender()
         self.rs = ResultsSender()
         self.logger = setupLogger(config['LOGS_DIR'], "clustercomputing")
-        self.results = {'job_id': self.slurm_job_id, 'node': socket.gethostname(), 'cluster': config['cluster_name']}
+        self.results = {'job_id': self.slurm_job_id, 'node': socket.gethostname(), 'cluster': config['CLUSTER_NAME']}
 
     def do_compute(self):
         pass
@@ -110,40 +110,42 @@ class KafkaSender:
 
 class StatusSender(KafkaSender):
     def send(self, jobid, status, job_id=None, node=None, error=None):
-        val = {'status': status, 'cluster': config['cluster_name'], 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        val = {'status': status, 'cluster': config['CLUSTER_NAME'], 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         if job_id:
             val['job_id'] = job_id
         if node:
             val['node'] = node
         if error:
             val['error'] = error
-        self.producer.send(config['topic_status'], key=jobid.encode('utf-8'), value=val)
+        self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=val)
 
     def remove(self, jobid):
-        self.producer.send(config['topic_status'], key=jobid.encode('utf-8'), value=None)
+        self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
 
 
 class ResultsSender(KafkaSender):
     def send(self, jobid, results):
         results['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.send(config['topic_done'], key=jobid.encode('utf-8'), value={'results': results})
+        self.producer.send(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value={'results': results})
 
 
 class ErrorSender(KafkaSender):
     def send(self, jobid, results, error):
         results['results']['error'] = str(error)
         results['results']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.send(config['topic_error'], key=jobid.encode('utf-8'), value=results)
+        self.producer.send(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=results)
 
 
 class JobSubmitter(KafkaSender):
-    def send(self, s_id, check=True, flush=True):
+    def send(self, s_id, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, flush=True):
         if check:
             status = self.check_status(s_id)
             if status is not None:
                 print('{} already processed: {}'.format(s_id, status))
                 return
-        self.producer.send(config['topic_new'], key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+        self.producer.send(config['TOPIC_NEW'], key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'script': script,
+                                                                                 'slurm_pars': slurm_pars,
+                                                                                 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
         if flush:
             self.producer.flush()
 
@@ -186,29 +188,30 @@ class ClusterAgent:
                                  heartbeat_interval_ms=2000,
                                  group_id=config['CLUSTER_AGENT_NEW_GROUP'],
                                  value_deserializer=lambda x: json.loads(x.decode('utf-8')))
-        self.script_name = 'myjob.py'
         self.stat_send = StatusSender()
         self.logger = setupLogger(config['LOGS_DIR'], "clusteragent")
         self.logger.info('Cluster Agent Started')
         self.job_name_suffix = '_CLAG'
 
     def get_job_name(self, input_job_id):
-        #TODO - override the method according to your needs
+        # TODO - override the method according to your needs
         return input_job_id
 
-    def get_slurm_batch_cmd(self, input_job_id):
-        return os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + self.script_name + ' ' + str(input_job_id)
+    def get_slurm_batch_cmd(self, input_job_id, script):
+        # TODO - override the method according to your needs
+        return os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
 
-    def get_job_type(self, input_job_id):
-        return config['slurm_job_type']
+    def get_job_type(self, slurm_pars):
+        return config['SLURM_JOB_TYPE']
 
-    def is_job_gpu(self, input_job_id):
-        return self.get_job_type(input_job_id) == 'gpu'
+    def is_job_gpu(self, slurm_pars):
+        return slurm_pars['JOB_TYPE']
+        #return self.get_job_type(input_job_id) == 'gpu'
 
     def check_queue_submit(self):
         func_name = 'self.slurm_get_idle_' + self.get_job_type('') + 's'
         free = eval(func_name + "()")
-        self.logger.info('Free {}s: {}'.format(config['slurm_job_type'].upper(), free))
+        self.logger.info('Free {}s: {}'.format(config['SLURM_JOB_TYPE'].upper(), free))
         w = self.slurm_check_jobs_waiting()
         self.logger.info('Waiting: {}'.format(w))
         if w <= 1:
@@ -219,7 +222,7 @@ class ClusterAgent:
                 self.logger.debug(job)
                 for el in job[1]:
                     self.logger.debug(el.value['input_job_id'])
-                    job_id = self.submit_slurm_job(el.value['input_job_id'])
+                    job_id = self.submit_slurm_job(el.value['input_job_id'], el.value['script'], el.value['slurm_pars'])
                     self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', int(job_id))
             self.consumer.commit()
 
@@ -236,20 +239,20 @@ class ClusterAgent:
         else:
             return None, None
 
-    def submit_slurm_job(self, input_job_id):
+    def submit_slurm_job(self, input_job_id, script, slurm_params):
         job_name = self.get_job_name(input_job_id)
         prefix = config['PREFIX']
-        slurm_pars = {'cpus_per_task': config['slurm_resources_required'],
+        slurm_pars = {'cpus_per_task': slurm_params['RESOURCES_REQUIRED'],
                       'job_name': job_name,
-                      'partition': config['slurm_partition'],
+                      'partition': config['SLURM_PARTITION'],
                       'output': f'{prefix}slurm/{job_name}-{Slurm.JOB_ARRAY_MASTER_ID}.out'
                       }
-        if 'slurm_mem' in config:
-            slurm_pars['mem'] = config['slurm_mem']
-        if self.is_job_gpu(input_job_id):
+        if 'MEM' in slurm_params:
+            slurm_pars['mem'] = slurm_params['MEM']
+        if self.is_job_gpu(slurm_params):
             slurm_pars['gres'] = 'gpu'
         slurm = Slurm(**slurm_pars)
-        slurm_job_id = slurm.sbatch(self.get_slurm_batch_cmd(input_job_id))
+        slurm_job_id = slurm.sbatch(self.get_slurm_batch_cmd(input_job_id, script))
         self.logger.info('Submitted: {}, id: {}'.format(input_job_id, slurm_job_id))
         return slurm_job_id
 
@@ -272,7 +275,7 @@ class ClusterAgent:
 
     @staticmethod
     def slurm_get_idle_gpus(state='idle'):
-        res = ClusterAgent.run_command('sinfo -o "%G %.3D %.6t %P" | grep ' + state + ' | grep gpu | grep ' + config['slurm_partition'] + "| awk '{print $1,$2}'")
+        res = ClusterAgent.run_command('sinfo -o "%G %.3D %.6t %P" | grep ' + state + ' | grep gpu | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
         if res:
             lines = res.splitlines()
             gpus = 0
@@ -285,7 +288,7 @@ class ClusterAgent:
 
     @staticmethod
     def slurm_get_idle_cpus():
-        res = ClusterAgent.run_command('sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['slurm_partition'] + "| awk '{print $1,$2}'")
+        res = ClusterAgent.run_command('sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
         if res:
             lines = res.splitlines()
             cpus = 0
