@@ -163,9 +163,9 @@ class JobSubmitter(KafkaSender):
         except URLError as e:
             raise ClusterAgentException('Cannot reach Monitor Agent at: ' + url)
 
-    def send_many(self, ids):
+    def send_many(self, ids, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}):
         for s_id in ids:
-            self.send(s_id, flush=False)
+            self.send(s_id, script=script, slurm_pars=slurm_pars, flush=False)
         self.producer.flush()
 
     def __del__(self):
