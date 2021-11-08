@@ -12,8 +12,7 @@ setup(
     author_email="pawel.rubach@gmail.com",
     description="The Kafka Slurm Agent is a tool for submitting computing tasks to the Slurm queues on multiple "
                 "clusters. It uses Kafka to asynchronously communicate with an agent installed on the cluster."
-                "It contains a monitoring tool"
-                "and This package provides a set of tools for accessing protein databases and manipulating PDB/CIF files.",
+                "It contains a monitoring tool and a job submitter.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/prubach/kafka-slurm-agent",
