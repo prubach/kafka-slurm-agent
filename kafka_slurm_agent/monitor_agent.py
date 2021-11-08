@@ -60,7 +60,7 @@ async def get_stats(web, request, organism, input_job_id):
 
 
 def get_new():
-    if 'BOOTSTRAP_SEVERS_LOCAL' not in config:
+    if 'BOOTSTRAP_SERVERS_LOCAL' not in config:
         config['BOOTSTRAP_SERVERS_LOCAL'] = config['BOOTSTRAP_SERVERS']
     cmd = config['KAFKA_HOME'] + "/bin/kafka-consumer-groups.sh --bootstrap-server " + config['BOOTSTRAP_SERVERS_LOCAL'] + " --describe --group " + config['CLUSTER_AGENT_NEW_GROUP'] + "| grep " + config['TOPIC_NEW'] + "| awk {'printf (\"%s %s %s\\n\", $4, $5, $6)'}"
     comd = Command(cmd)
