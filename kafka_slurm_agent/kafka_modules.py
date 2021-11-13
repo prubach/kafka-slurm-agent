@@ -141,13 +141,15 @@ class JobSubmitter(KafkaSender):
         if check:
             status = self.check_status(s_id)
             if status is not None:
-                print('{} already processed: {}'.format(s_id, status))
-                return
+                if config['DEBUG']:
+                    print('{} already processed: {}'.format(s_id, status))
+                return s_id, False, status
         self.producer.send(config['TOPIC_NEW'], key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'script': script,
                                                                                  'slurm_pars': slurm_pars,
                                                                                  'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
         if flush:
             self.producer.flush()
+        return s_id, True, None
 
     @staticmethod
     def check_status(s_id):
@@ -164,9 +166,11 @@ class JobSubmitter(KafkaSender):
             raise ClusterAgentException('Cannot reach Monitor Agent at: ' + url)
 
     def send_many(self, ids, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}):
+        results = []
         for s_id in ids:
-            self.send(s_id, script=script, slurm_pars=slurm_pars, flush=False)
+            results.append(self.send(s_id, script=script, slurm_pars=slurm_pars, flush=False))
         self.producer.flush()
+        return results
 
     def __del__(self):
         self.producer.flush()
