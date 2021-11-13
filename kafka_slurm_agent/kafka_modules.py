@@ -137,19 +137,21 @@ class ErrorSender(KafkaSender):
 
 
 class JobSubmitter(KafkaSender):
-    def send(self, s_id, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, flush=True):
+    def send(self, s_id, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, flush=True, ignore_error_status=False):
+        status = None
         if check:
             status = self.check_status(s_id)
             if status is not None:
                 if config['DEBUG']:
                     print('{} already processed: {}'.format(s_id, status))
-                return s_id, False, status
+                if not ignore_error_status or (ignore_error_status and status != 'ERROR'):
+                    return s_id, False, status
         self.producer.send(config['TOPIC_NEW'], key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'script': script,
                                                                                  'slurm_pars': slurm_pars,
                                                                                  'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
         if flush:
             self.producer.flush()
-        return s_id, True, None
+        return s_id, True, status
 
     @staticmethod
     def check_status(s_id):
