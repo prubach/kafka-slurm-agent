@@ -12,4 +12,4 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 source $DIR/venv/bin/activate
 pip install twine
 # Upload to PyPI
-twine upload $DIR/dist/kafka-slurm-*.whl
+twine upload $DIR/dist/kafka_slurm_*.whl
