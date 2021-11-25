@@ -7,7 +7,7 @@ from pydoc import locate
 from kafka_slurm_agent.kafka_modules import config
 from concurrent.futures import ThreadPoolExecutor
 
-app = faust.App(config['CLUSTER_NAME'] + '_cluster_agent',
+app = faust.App(config['WORKER_NAME'] + '_worker_agent',
                 group_id=1,
                 broker='kafka://' + config['BOOTSTRAP_SERVERS'],
                 broker_credentials=config['KAFKA_FAUST_BROKER_CREDENTIALS'],
@@ -21,7 +21,7 @@ job_status = app.Table('job_status', default='')
 
 thread_pool = ThreadPoolExecutor(max_workers=1)
 sys.path.append(os.getcwd())
-ca_class = locate(config['CLUSTER_AGENT_CLASS'])
+ca_class = locate(config['WORKER_AGENT_CLASS'])
 ca = ca_class()
 
 
@@ -29,7 +29,7 @@ def run_cluster_agent_check():
     for key in list(job_status.keys()):
         if key in job_status.keys():
             js = ast.literal_eval(str(job_status[key]))
-            if js['cluster'] == config['CLUSTER_NAME'] and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
+            if js['cluster'] == config['WORKER_NAME'] and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
                 status, reason = ca.check_job_status(js['job_id'])
                 if not status:
                     ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from slurm queue')

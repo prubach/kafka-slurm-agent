@@ -8,6 +8,9 @@ import sys
 import traceback
 import urllib
 import datetime
+import uuid
+from queue import Queue
+from threading import Thread
 from urllib.error import URLError
 
 from confluent_kafka import Consumer, Producer
@@ -119,7 +122,7 @@ class StatusSender(KafkaSender):
             val['node'] = node
         if error:
             val['error'] = error
-        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=val)
+        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=json.dump(val))
 
     def remove(self, jobid):
         self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
@@ -135,7 +138,7 @@ class ResultsSender(KafkaSender):
 
     def send(self, jobid, results):
         results['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.produce(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value={'results': results},
+        self.producer.produce(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value=json.dump({'results': results}),
                               callback=ResultsSender.delivery_report)
 
 
@@ -143,7 +146,7 @@ class ErrorSender(KafkaSender):
     def send(self, jobid, results, error):
         results['results']['error'] = str(error)
         results['results']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.send(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=results)
+        self.producer.send(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=json.dump(results))
 
 
 class JobSubmitter(KafkaSender):
@@ -201,6 +204,40 @@ class ClusterAgentException(Exception):
     pass
 
 
+class WorkerRunner(Thread):
+    def __init__(self, queue, logger, stat_send, processing):
+        Thread.__init__(self)
+        self.queue = queue
+        self.logger = logger
+        self.stat_send = stat_send
+        self.processing = processing
+
+    def run(self):
+        while True:
+            job_id, input_job_id, cmd = self.queue.get()
+            finished_ok = False
+            try:
+                self.logger.info('Starting job {}: {}'.format(job_id, cmd))
+                self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
+                self.processing.append(input_job_id)
+                rcode, out = WorkingAgent.run_command(cmd)
+                if rcode != 0:
+                    self.logger.error('Return code {}: {}'.format(job_id, rcode))
+                    self.logger.error('OUT[{}]: {}'.format(job_id, out))
+                else:
+                    self.logger.info('Return code {}: {}'.format(job_id, rcode))
+                    self.logger.debug('OUT[{}]: {}'.format(job_id, out))
+                    finished_ok = True
+                    self.stat_send.send(input_job_id, 'DONE', job_id, node=socket.gethostname())
+                self.logger.info('Finished job {}: {}'.format(job_id, cmd))
+            finally:
+                self.processing.remove(input_job_id)
+                if not finished_ok:
+                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}'.format(rcode, out))
+                self.logger.info('Finalizing job {}: {}'.format(job_id, cmd))
+                self.queue.task_done()
+
+
 class WorkingAgent:
     def __init__(self):
         cfg = {'bootstrap.servers': config['BOOTSTRAP_SERVERS'],
@@ -216,8 +253,6 @@ class WorkingAgent:
         self.consumer.subscribe([config['TOPIC_NEW']])
         self.stat_send = StatusSender()
         self.script_name = None
-        self.logger = setupLogger(config['LOGS_DIR'], "clusteragent")
-        self.logger.info('Cluster Agent Started')
         self.job_name_suffix = '_CLAG'
 
     def get_job_name(self, input_job_id):
@@ -235,19 +270,33 @@ class WorkingAgent:
         cmd = os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
         if msg:
             cmd += ' ' + str(msg)
-        #print(cmd)
         return cmd
+
+    @staticmethod
+    def run_command(cmd):
+        comd = Command(cmd)
+        comd.run(10)
+        return comd.getReturnCode(), comd.getOut()
 
 
 class WorkerAgent(WorkingAgent):
     def __init__(self):
         super(WorkerAgent, self).__init__()
+        self.logger = setupLogger(config['LOGS_DIR'], "workeragent")
+        self.logger.info('Worker Agent Started')
         self.workers = config['WORKER_AGENT_MAX_WORKERS']
+        self.queue = Queue()
+        self.processing = []
+        self.start_workers()
+
+    @staticmethod
+    def unique_id():
+        return hex(uuid.uuid4().time)[2:-1]
 
     def check_queue_submit(self):
-        #self.logger.info('Free {}s: {}'.format(config['SLURM_JOB_TYPE'].upper(), free))
-        runners = 1 # check how many are running
-        while runners>0:
+        i = 0
+        while self.queue.qsize() < self.workers and i < self.workers*4:
+            i += 1
             job = self.consumer.poll(2.0)
             #self.logger.info('Got {} new jobs'.format(len(new_jobs)))
             if job is None:
@@ -257,14 +306,31 @@ class WorkerAgent(WorkingAgent):
             self.logger.debug(job)
             msg = ast.literal_eval(job.value().decode('utf-8'))
             self.logger.debug(msg['input_job_id'])
-            job_id = self.submit_slurm_job(msg['input_job_id'], msg['script'], msg['slurm_pars'], msg)
-            self.stat_send.send(msg['input_job_id'], 'SUBMITTED', int(job_id))
+            cmd = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg)
+            job_id = self.unique_id()
+            self.queue.put((job_id, msg['input_job_id'], cmd))
+            self.stat_send.send(msg['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
+
+    def check_job_status(self, input_job_id):
+        if input_job_id in self.processing:
+            return 'RUNNING', None
+        else:
+            return None, None
+
+    def start_workers(self):
+        for n in range(self.workers):
+            worker = WorkerRunner(self.queue, self.logger, self.stat_send, self.processing)
+            worker.daemon = True
+            worker.start()
+        self.queue.join()
 
 
 class ClusterAgent(WorkingAgent):
     def __init__(self):
         super(ClusterAgent, self).__init__()
+        self.logger = setupLogger(config['LOGS_DIR'], "clusteragent")
+        self.logger.info('Cluster Agent Started')
 
     def check_queue_submit(self):
         func_name = 'self.slurm_get_idle_' + self.get_job_type(None) + 's'
@@ -290,7 +356,7 @@ class ClusterAgent(WorkingAgent):
             self.consumer.commit()
 
     @staticmethod
-    def slurm_check_job_status(job_id):
+    def check_job_status(job_id):
         cmd = 'squeue -o "%i %R" | grep ' + str(job_id)
         comd = Command(cmd)
         comd.run(10)
@@ -322,7 +388,7 @@ class ClusterAgent(WorkingAgent):
         return slurm_job_id
 
     def slurm_check_jobs_waiting(self):
-        res = self.run_command('squeue -o "%j %R %u" | grep ' + getpass.getuser() + ' | grep ' + self.job_name_suffix)
+        _, res = self.run_command('squeue -o "%j %R %u" | grep ' + getpass.getuser() + ' | grep ' + self.job_name_suffix)
         waiting = 0
         if res:
             lines = res.splitlines()
@@ -333,14 +399,8 @@ class ClusterAgent(WorkingAgent):
         return waiting
 
     @staticmethod
-    def run_command(cmd):
-        comd = Command(cmd)
-        comd.run(10)
-        return comd.getOut()
-
-    @staticmethod
     def slurm_get_idle_gpus(state='idle'):
-        res = ClusterAgent.run_command('sinfo -o "%G %.3D %.6t %P" | grep ' + state + ' | grep gpu | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
+        _, res = ClusterAgent.run_command('sinfo -o "%G %.3D %.6t %P" | grep ' + state + ' | grep gpu | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
         if res:
             lines = res.splitlines()
             gpus = 0
@@ -353,7 +413,7 @@ class ClusterAgent(WorkingAgent):
 
     @staticmethod
     def slurm_get_idle_cpus():
-        res = ClusterAgent.run_command('sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
+        _, res = ClusterAgent.run_command('sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
         if res:
             lines = res.splitlines()
             cpus = 0
