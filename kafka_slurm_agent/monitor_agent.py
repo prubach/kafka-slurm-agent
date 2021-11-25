@@ -49,7 +49,7 @@ async def get_stats(web, request):
 
 
 @app.page(config['MONITOR_AGENT_CONTEXT_PATH'] + 'check/{input_job_id}/')
-async def get_stats(web, request, organism, input_job_id):
+async def get_stats(web, request, input_job_id):
     if input_job_id in job_status:
         result = job_status[input_job_id]
     else:

@@ -10,7 +10,7 @@ import urllib
 import datetime
 from urllib.error import URLError
 
-from kafka import KafkaConsumer, KafkaProducer
+from confluent_kafka import Consumer, Producer
 from simple_slurm import Slurm
 import getpass
 from os.path import expanduser
@@ -99,13 +99,14 @@ class ClusterComputing:
 
 class KafkaSender:
     def __init__(self):
-        self.producer = KafkaProducer(bootstrap_servers=config['BOOTSTRAP_SERVERS'],
-                                      client_id='{}_{}'.format(config['CLUSTER_NAME'], self.__class__.__name__.lower()),
-                                      security_protocol=config['KAFKA_SECURITY_PROTOCOL'],
-                                      sasl_mechanism=config['KAFKA_SASL_MECHANISM'],
-                                      sasl_plain_username=config['KAFKA_USERNAME'],
-                                      sasl_plain_password=config['KAFKA_PASSWORD'],
-                                      value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+        cfg = {'bootstrap.servers' : config['BOOTSTRAP_SERVERS'],
+                                  'client.id': '{}_{}'.format(config['CLUSTER_NAME'], self.__class__.__name__.lower()),
+                                  'security.protocol': config['KAFKA_SECURITY_PROTOCOL']}
+        if config['KAFKA_SASL_MECHANISM']:
+            cfg.update({'sasl.mechanism': config['KAFKA_SASL_MECHANISM'],
+                        'sasl.username': config['KAFKA_USERNAME'],
+                        'sasl.password': config['KAFKA_PASSWORD']})
+        self.producer = Producer(cfg)
 
 
 class StatusSender(KafkaSender):
@@ -117,16 +118,24 @@ class StatusSender(KafkaSender):
             val['node'] = node
         if error:
             val['error'] = error
-        self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=val)
+        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=val)
 
     def remove(self, jobid):
         self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
 
 
 class ResultsSender(KafkaSender):
+    @staticmethod
+    def delivery_report(err, msg):
+        if err is not None:
+            print('Results not delivered!!!: {}'.format(err))
+        else:
+            print('Results delivered to {} [{}]'.format(msg.topic(), msg.partition()))
+
     def send(self, jobid, results):
         results['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.send(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value={'results': results})
+        self.producer.produce(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value={'results': results},
+                              callback=ResultsSender.delivery_report)
 
 
 class ErrorSender(KafkaSender):
@@ -137,6 +146,13 @@ class ErrorSender(KafkaSender):
 
 
 class JobSubmitter(KafkaSender):
+    @staticmethod
+    def delivery_report(err, msg):
+        if err is not None:
+            print('Job not submitted!!!: {}'.format(err))
+        else:
+            print('Job submitted to {} [{}]'.format(msg.topic(), msg.partition()))
+
     def send(self, s_id, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, flush=True, ignore_error_status=False):
         status = None
         if check:
@@ -146,9 +162,11 @@ class JobSubmitter(KafkaSender):
                     print('{} already processed: {}'.format(s_id, status))
                 if not ignore_error_status or (ignore_error_status and status != 'ERROR'):
                     return s_id, False, status
-        self.producer.send(config['TOPIC_NEW'], key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'script': script,
-                                                                                 'slurm_pars': slurm_pars,
-                                                                                 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+        self.producer.produce(config['TOPIC_NEW'], key=s_id.encode('utf-8'),
+                              value=str({'input_job_id': s_id, 'script': script,
+                                     'slurm_pars': slurm_pars,
+                                     'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf-8'),
+                              callback=JobSubmitter.delivery_report)
         if flush:
             self.producer.flush()
         return s_id, True, status
@@ -156,7 +174,7 @@ class JobSubmitter(KafkaSender):
     @staticmethod
     def check_status(s_id):
         try:
-            url = config['MONITOR_AGENT_URL'] + config['MONITOR_AGENT_CONTEXT_PATH'] + '/check/' + s_id + '/'
+            url = config['MONITOR_AGENT_URL'] + config['MONITOR_AGENT_CONTEXT_PATH'] + 'check/' + s_id + '/'
             response = urllib.request.urlopen(url)
             res = response.read().decode("utf-8")
             status = ast.literal_eval(res)
@@ -184,16 +202,17 @@ class ClusterAgentException(Exception):
 
 class ClusterAgent:
     def __init__(self):
-        self.consumer = KafkaConsumer(config['TOPIC_NEW'],
-                                 bootstrap_servers=config['BOOTSTRAP_SERVERS'],
-                                 security_protocol=config['KAFKA_SECURITY_PROTOCOL'],
-                                 sasl_mechanism=config['KAFKA_SASL_MECHANISM'],
-                                 sasl_plain_username=config['KAFKA_USERNAME'],
-                                 sasl_plain_password=config['KAFKA_PASSWORD'],
-                                 enable_auto_commit=False,
-                                 heartbeat_interval_ms=2000,
-                                 group_id=config['CLUSTER_AGENT_NEW_GROUP'],
-                                 value_deserializer=lambda x: json.loads(x.decode('utf-8')))
+        cfg = {'bootstrap.servers': config['BOOTSTRAP_SERVERS'],
+               'security.protocol': config['KAFKA_SECURITY_PROTOCOL'],
+               'enable.auto.commit': False,
+               'heartbeat.interval.ms': 2000,
+               'group.id': config['CLUSTER_AGENT_NEW_GROUP']}
+        if config['KAFKA_SASL_MECHANISM']:
+            cfg.update({'sasl.mechanism': config['KAFKA_SASL_MECHANISM'],
+                        'sasl.username': config['KAFKA_USERNAME'],
+                        'sasl.password': config['KAFKA_PASSWORD']})
+        self.consumer = Consumer(cfg)
+        self.consumer.subscribe([config['TOPIC_NEW']])
         self.stat_send = StatusSender()
         self.script_name = None
         self.logger = setupLogger(config['LOGS_DIR'], "clusteragent")
@@ -221,15 +240,20 @@ class ClusterAgent:
         w = self.slurm_check_jobs_waiting()
         self.logger.info('Waiting: {}'.format(w))
         if w <= 1:
+            to_poll = max(math.floor(free / config['SLURM_RESOURCES_REQUIRED']), 1)
             self.logger.info('Polling: {}'.format(max(math.floor(free/config['SLURM_RESOURCES_REQUIRED']), 1)))
-            new_jobs = self.consumer.poll(max_records=max(math.floor(free/config['SLURM_RESOURCES_REQUIRED']), 1), timeout_ms=2000)
-            self.logger.info('Got {} new jobs'.format(len(new_jobs)))
-            for job in new_jobs.items():
+            for i in range(to_poll):
+                job = self.consumer.poll(2.0)
+                #self.logger.info('Got {} new jobs'.format(len(new_jobs)))
+                if job is None:
+                    continue
+                if job.error():
+                    self.logger.error("Consumer error: {}".format(job.error()))
                 self.logger.debug(job)
-                for el in job[1]:
-                    self.logger.debug(el.value['input_job_id'])
-                    job_id = self.submit_slurm_job(el.value['input_job_id'], el.value['script'], el.value['slurm_pars'])
-                    self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', int(job_id))
+                msg = ast.literal_eval(job.value().decode('utf-8'))
+                self.logger.debug(msg['input_job_id'])
+                job_id = self.submit_slurm_job(msg['input_job_id'], msg['script'], msg['slurm_pars'])
+                self.stat_send.send(msg['input_job_id'], 'SUBMITTED', int(job_id))
             self.consumer.commit()
 
     @staticmethod
