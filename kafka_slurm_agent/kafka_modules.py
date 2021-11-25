@@ -30,7 +30,8 @@ config_defaults = {
     'KAFKA_SECURITY_PROTOCOL': 'PLAINTEXT',
     'KAFKA_SASL_MECHANISM': None,
     'KAFKA_USERNAME': None,
-    'KAFKA_PASSWORD': None
+    'KAFKA_PASSWORD': None,
+    'WORKER_AGENT_MAX_WORKERS': 2
 }
 
 
@@ -200,7 +201,7 @@ class ClusterAgentException(Exception):
     pass
 
 
-class ClusterAgent:
+class WorkingAgent:
     def __init__(self):
         cfg = {'bootstrap.servers': config['BOOTSTRAP_SERVERS'],
                'security.protocol': config['KAFKA_SECURITY_PROTOCOL'],
@@ -223,15 +224,47 @@ class ClusterAgent:
         # TODO - override the method according to your needs
         return input_job_id
 
-    def get_slurm_batch_cmd(self, input_job_id, script):
-        # TODO - override the method according to your needs
-        return os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
-
     def get_job_type(self, slurm_pars):
         return slurm_pars['JOB_TYPE'] if slurm_pars and 'JOB_TYPE' in slurm_pars else config['SLURM_JOB_TYPE']
 
     def is_job_gpu(self, slurm_pars):
         return self.get_job_type(slurm_pars) == 'gpu'
+
+    def get_runner_batch_cmd(self, input_job_id, script, msg=None):
+        # TODO - override the method according to your needs
+        cmd = os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
+        if msg:
+            cmd += ' ' + str(msg)
+        #print(cmd)
+        return cmd
+
+
+class WorkerAgent(WorkingAgent):
+    def __init__(self):
+        super(WorkerAgent, self).__init__()
+        self.workers = config['WORKER_AGENT_MAX_WORKERS']
+
+    def check_queue_submit(self):
+        #self.logger.info('Free {}s: {}'.format(config['SLURM_JOB_TYPE'].upper(), free))
+        runners = 1 # check how many are running
+        while runners>0:
+            job = self.consumer.poll(2.0)
+            #self.logger.info('Got {} new jobs'.format(len(new_jobs)))
+            if job is None:
+                continue
+            if job.error():
+                self.logger.error("Consumer error: {}".format(job.error()))
+            self.logger.debug(job)
+            msg = ast.literal_eval(job.value().decode('utf-8'))
+            self.logger.debug(msg['input_job_id'])
+            job_id = self.submit_slurm_job(msg['input_job_id'], msg['script'], msg['slurm_pars'], msg)
+            self.stat_send.send(msg['input_job_id'], 'SUBMITTED', int(job_id))
+            self.consumer.commit()
+
+
+class ClusterAgent(WorkingAgent):
+    def __init__(self):
+        super(ClusterAgent, self).__init__()
 
     def check_queue_submit(self):
         func_name = 'self.slurm_get_idle_' + self.get_job_type(None) + 's'
@@ -252,7 +285,7 @@ class ClusterAgent:
                 self.logger.debug(job)
                 msg = ast.literal_eval(job.value().decode('utf-8'))
                 self.logger.debug(msg['input_job_id'])
-                job_id = self.submit_slurm_job(msg['input_job_id'], msg['script'], msg['slurm_pars'])
+                job_id = self.submit_slurm_job(msg['input_job_id'], msg['script'], msg['slurm_pars'], msg)
                 self.stat_send.send(msg['input_job_id'], 'SUBMITTED', int(job_id))
             self.consumer.commit()
 
@@ -269,7 +302,7 @@ class ClusterAgent:
         else:
             return None, None
 
-    def submit_slurm_job(self, input_job_id, script, slurm_params):
+    def submit_slurm_job(self, input_job_id, script, slurm_params, msg=None):
         if not script:
             script = self.script_name
         job_name = self.get_job_name(input_job_id)
@@ -284,7 +317,7 @@ class ClusterAgent:
         if self.is_job_gpu(slurm_params):
             slurm_pars['gres'] = 'gpu'
         slurm = Slurm(**slurm_pars)
-        slurm_job_id = slurm.sbatch(self.get_slurm_batch_cmd(input_job_id, script))
+        slurm_job_id = slurm.sbatch(self.get_runner_batch_cmd(input_job_id, script, msg))
         self.logger.info('Submitted: {}, id: {}'.format(input_job_id, slurm_job_id))
         return slurm_job_id
 
