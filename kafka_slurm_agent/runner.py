@@ -22,7 +22,16 @@ SCRIPTS = {
                            "\t\tself.job_name_suffix = '_MYJOBS'\n\n"
                            "\tdef get_job_name(self, input_job_id):\n"
                            "\t\treturn str(input_job_id) + self.job_name_suffix\n",
-    'start_monitor_agent': '#!/bin/bash\nfaust -A my_monitor_agent -l info worker -p 6067\n'
+    'my_worker_agent.py': "from kafka_slurm_agent.kafka_modules import WorkerAgent\n\n"
+                           "class MyWorkerAgent(WorkerAgent):\n"
+                           "\tdef __init__(self):\n"
+                           "\t\tsuper().__init__()\n"
+                           "\t\tself.script_name = 'run.py'\n"
+                           "\t\tself.job_name_suffix = '_MYJOBS'\n\n"
+                           "\tdef get_job_name(self, input_job_id):\n"
+                           "\t\treturn str(input_job_id) + self.job_name_suffix\n",
+    'start_monitor_agent': '#!/bin/bash\nfaust -A my_monitor_agent -l info worker -p 6067\n',
+    'start_worker_agent': '#!/bin/bash\nfaust -A kafka_slurm_agent.worker_agent -l info worker -p 6068\n'
 }
 
 
