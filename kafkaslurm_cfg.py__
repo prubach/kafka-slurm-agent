@@ -19,6 +19,8 @@ TOPIC_ERROR = 'kp-error'
 CLUSTER_AGENT_NEW_GROUP = 'kp_agent_new'
 WORKER_NAME = 'my_worker'
 WORKER_AGENT_CLASS = 'my_worker_agent.MyWorkerAgent'
+WORKER_AGENT_MAX_WORKERS = 4
+WORKER_JOB_TIMEOUT = 360000 # in seconds
 
 # / The parameters below are used to run a command directly on Kafka to query for new and waiting jobs
 BOOTSTRAP_SERVERS_LOCAL = 'localhost:9092'
