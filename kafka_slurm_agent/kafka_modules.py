@@ -34,7 +34,8 @@ config_defaults = {
     'KAFKA_SASL_MECHANISM': None,
     'KAFKA_USERNAME': None,
     'KAFKA_PASSWORD': None,
-    'WORKER_AGENT_MAX_WORKERS': 2
+    'WORKER_AGENT_MAX_WORKERS': 2,
+    'WORKER_JOB_TIMEOUT': 86400  # = 24h
 }
 
 
@@ -80,7 +81,7 @@ def setupLogger(directory, name, file_name=None):
 class ClusterComputing:
     def __init__(self, input_job_id):
         self.input_job_id = input_job_id
-        self.slurm_job_id = int(os.getenv('SLURM_JOB_ID', -1))
+        self.slurm_job_id = os.getenv('SLURM_JOB_ID', -1)
         self.ss = StatusSender()
         self.rs = ResultsSender()
         self.logger = setupLogger(config['LOGS_DIR'], "clustercomputing")
@@ -99,6 +100,10 @@ class ClusterComputing:
             desc_exc = traceback.format_exc()[:10000]
             self.ss.send(self.struct_name, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=desc_exc)
             self.logger.error(desc_exc)
+
+    def __del__(self):
+        self.ss.producer.flush()
+        self.rs.producer.flush()
 
 
 class KafkaSender:
@@ -122,7 +127,7 @@ class StatusSender(KafkaSender):
             val['node'] = node
         if error:
             val['error'] = error
-        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=json.dump(val))
+        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=json.dumps(val))
 
     def remove(self, jobid):
         self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
@@ -138,7 +143,7 @@ class ResultsSender(KafkaSender):
 
     def send(self, jobid, results):
         results['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.produce(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value=json.dump({'results': results}),
+        self.producer.produce(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value=json.dumps({'results': results}),
                               callback=ResultsSender.delivery_report)
 
 
@@ -146,7 +151,7 @@ class ErrorSender(KafkaSender):
     def send(self, jobid, results, error):
         results['results']['error'] = str(error)
         results['results']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.send(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=json.dump(results))
+        self.producer.send(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=json.dumps(results))
 
 
 class JobSubmitter(KafkaSender):
@@ -189,10 +194,10 @@ class JobSubmitter(KafkaSender):
         except URLError as e:
             raise ClusterAgentException('Cannot reach Monitor Agent at: ' + url)
 
-    def send_many(self, ids, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, ignore_error_status=False):
+    def send_many(self, ids, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, ignore_error_status=False):
         results = []
         for s_id in ids:
-            results.append(self.send(s_id, script=script, slurm_pars=slurm_pars, flush=False, ignore_error_status=ignore_error_status))
+            results.append(self.send(s_id, script=script, slurm_pars=slurm_pars, check=check, flush=False, ignore_error_status=ignore_error_status))
         self.producer.flush()
         return results
 
@@ -220,13 +225,14 @@ class WorkerRunner(Thread):
                 self.logger.info('Starting job {}: {}'.format(job_id, cmd))
                 self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
                 self.processing.append(input_job_id)
-                rcode, out = WorkingAgent.run_command(cmd)
+                os.environ["SLURM_JOB_ID"] = job_id
+                rcode, out = WorkingAgent.run_command(cmd, config['WORKER_JOB_TIMEOUT'])
                 if rcode != 0:
                     self.logger.error('Return code {}: {}'.format(job_id, rcode))
                     self.logger.error('OUT[{}]: {}'.format(job_id, out))
                 else:
                     self.logger.info('Return code {}: {}'.format(job_id, rcode))
-                    self.logger.debug('OUT[{}]: {}'.format(job_id, out))
+                    self.logger.info('OUT[{}]: {}'.format(job_id, out))
                     finished_ok = True
                     self.stat_send.send(input_job_id, 'DONE', job_id, node=socket.gethostname())
                 self.logger.info('Finished job {}: {}'.format(job_id, cmd))
@@ -273,9 +279,9 @@ class WorkingAgent:
         return cmd
 
     @staticmethod
-    def run_command(cmd):
+    def run_command(cmd, timeout=10):
         comd = Command(cmd)
-        comd.run(10)
+        comd.run(timeout=timeout)
         return comd.getReturnCode(), comd.getOut()
 
 
