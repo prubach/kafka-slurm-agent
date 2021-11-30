@@ -100,14 +100,14 @@ class ClusterComputing:
         pass
 
     def compute(self):
-        self.ss.send(self.struct_name, 'RUNNING', job_id=self.slurm_job_id, node=socket.gethostname())
+        self.ss.send(self.input_job_id, 'RUNNING', job_id=self.slurm_job_id, node=socket.gethostname())
         try:
             self.do_compute()
             #self.rs.send(self.struct_name, self.results)
-            self.ss.send(self.struct_name, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
+            self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
         except Exception as e:
             desc_exc = traceback.format_exc()
-            self.ss.send(self.struct_name, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=desc_exc)
+            self.ss.send(self.input_job_id, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=desc_exc)
             self.logger.error(desc_exc)
 
     def __del__(self):
@@ -139,7 +139,7 @@ class StatusSender(KafkaSender):
         self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=json.dumps(val))
 
     def remove(self, jobid):
-        self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
+        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
 
 
 class ResultsSender(KafkaSender):
@@ -160,7 +160,7 @@ class ErrorSender(KafkaSender):
     def send(self, jobid, results, error):
         results['results']['error'] = str(error)
         results['results']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.send(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=json.dumps(results))
+        self.producer.produce(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=json.dumps(results))
 
 
 class JobSubmitter(KafkaSender):
