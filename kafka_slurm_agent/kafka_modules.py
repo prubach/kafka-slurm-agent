@@ -5,6 +5,7 @@ import math
 import os.path
 import socket
 import sys
+import tempfile
 import traceback
 import urllib
 import datetime
@@ -13,7 +14,7 @@ from queue import Queue
 from threading import Thread
 from urllib.error import URLError
 
-from confluent_kafka import Consumer, Producer
+from kafka import KafkaConsumer, KafkaProducer
 from simple_slurm import Slurm
 import getpass
 from os.path import expanduser
@@ -28,7 +29,6 @@ config_defaults = {
     'POLL_INTERVAL': 30.0,
     'BOOTSTRAP_SERVERS': 'localhost:9092',
     'MONITOR_AGENT_URL': 'http://localhost:6066/',
-    'PREFIX': 'kafka_slurm_agent',
     'KAFKA_FAUST_BROKER_CREDENTIALS': None,
     'KAFKA_SECURITY_PROTOCOL': 'PLAINTEXT',
     'KAFKA_SASL_MECHANISM': None,
@@ -59,6 +59,8 @@ class ConfigLoader:
                 '{} configuration file not found in home folder or any parent folders of where the app is installed!'.format(
                     CONFIG_FILE))
             sys.exit(-1)
+        config_defaults['PREFIX'] = rootpath
+        config_defaults['SHARED_TMP'] = os.path.join(rootpath, 'tmp')
         self.config = Config(root_path=rootpath, defaults=config_defaults)
         self.config.from_pyfile(CONFIG_FILE)
 
@@ -79,18 +81,16 @@ def setupLogger(directory, name, file_name=None):
 
 
 class ClusterComputing:
-    def __init__(self, input_job_id, job_id=None, input_config=None):
-        self.input_job_id = input_job_id
-        is_config = False
-        config_els = []
-        if input_config:
-            for el in input_config:
-                if el.startswith('{'):
-                    is_config = True
-                if is_config:
-                    config_els.append(el)
-            self.job_config = ast.literal_eval(' '.join(config_els))
-        self.slurm_job_id = job_id.split('job_id=')[1] if job_id else os.getenv('SLURM_JOB_ID', -1)
+    def __init__(self, input_args):
+        self.input_job_id = input_args[1]
+        if len(input_args) > 2:
+            cfg_file = input_args[2].split('cfg_file=')[1]
+            with open(cfg_file) as json_file:
+                self.job_config = json.load(json_file)
+        if len(input_args) > 3:
+            self.slurm_job_id = input_args[3].split('job_id=')[1]
+        else:
+            self.slurm_job_id = os.getenv('SLURM_JOB_ID', -1)
         self.ss = StatusSender()
         self.rs = ResultsSender()
         self.logger = setupLogger(config['LOGS_DIR'], "clustercomputing")
@@ -117,14 +117,13 @@ class ClusterComputing:
 
 class KafkaSender:
     def __init__(self):
-        cfg = {'bootstrap.servers': config['BOOTSTRAP_SERVERS'], 'client.id': '{}_{}'.format(config['CLUSTER_NAME'],
-                                                                                             self.__class__.__name__.lower()),
-               'security.protocol': config['KAFKA_SECURITY_PROTOCOL']}
-        if config['KAFKA_SASL_MECHANISM']:
-            cfg.update({'sasl.mechanism': config['KAFKA_SASL_MECHANISM'],
-                        'sasl.username': config['KAFKA_USERNAME'],
-                        'sasl.password': config['KAFKA_PASSWORD']})
-        self.producer = Producer(cfg)
+        self.producer = KafkaProducer(bootstrap_servers=config['BOOTSTRAP_SERVERS'],
+                                      client_id='{}_{}'.format(config['CLUSTER_NAME'], self.__class__.__name__.lower()),
+                                      security_protocol=config['KAFKA_SECURITY_PROTOCOL'],
+                                      sasl_mechanism=config['KAFKA_SASL_MECHANISM'],
+                                      sasl_plain_username=config['KAFKA_USERNAME'],
+                                      sasl_plain_password=config['KAFKA_PASSWORD'],
+                                      value_serializer=lambda v: json.dumps(v).encode('utf-8'))
 
 
 class StatusSender(KafkaSender):
@@ -136,41 +135,26 @@ class StatusSender(KafkaSender):
             val['node'] = node
         if error:
             val['error'] = error
-        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=json.dumps(val))
+        self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=val)
 
     def remove(self, jobid):
-        self.producer.produce(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
+        self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=None)
 
 
 class ResultsSender(KafkaSender):
-    @staticmethod
-    def delivery_report(err, msg):
-        if err is not None:
-            print('Results not delivered!!!: {}'.format(err))
-        else:
-            print('Results delivered to {} [{}]'.format(msg.topic(), msg.partition()))
-
     def send(self, jobid, results):
         results['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.produce(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value=json.dumps({'results': results}),
-                              callback=ResultsSender.delivery_report)
+        self.producer.send(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value={'results': results})
 
 
 class ErrorSender(KafkaSender):
     def send(self, jobid, results, error):
         results['results']['error'] = str(error)
         results['results']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.producer.produce(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=json.dumps(results))
+        self.producer.send(config['TOPIC_ERROR'], key=jobid.encode('utf-8'), value=results)
 
 
 class JobSubmitter(KafkaSender):
-    @staticmethod
-    def delivery_report(err, msg):
-        if err is not None:
-            print('Job not submitted!!!: {}'.format(err))
-        else:
-            print('Job submitted to {} [{}]'.format(msg.topic(), msg.partition()))
-
     def send(self, s_id, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, flush=True, ignore_error_status=False):
         status = None
         if check:
@@ -180,11 +164,9 @@ class JobSubmitter(KafkaSender):
                     print('{} already processed: {}'.format(s_id, status))
                 if not ignore_error_status or (ignore_error_status and status != 'ERROR'):
                     return s_id, False, status
-        self.producer.produce(config['TOPIC_NEW'], key=s_id.encode('utf-8'),
-                              value=str({'input_job_id': s_id, 'script': script,
-                                     'slurm_pars': slurm_pars,
-                                     'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}).encode('utf-8'),
-                              callback=JobSubmitter.delivery_report)
+        self.producer.send(config['TOPIC_NEW'], key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'script': script,
+                                                                                 'slurm_pars': slurm_pars,
+                                                                                 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
         if flush:
             self.producer.flush()
         return s_id, True, status
@@ -255,17 +237,16 @@ class WorkerRunner(Thread):
 
 class WorkingAgent:
     def __init__(self):
-        cfg = {'bootstrap.servers': config['BOOTSTRAP_SERVERS'],
-               'security.protocol': config['KAFKA_SECURITY_PROTOCOL'],
-               'enable.auto.commit': False,
-               'heartbeat.interval.ms': 2000,
-               'group.id': config['CLUSTER_AGENT_NEW_GROUP']}
-        if config['KAFKA_SASL_MECHANISM']:
-            cfg.update({'sasl.mechanism': config['KAFKA_SASL_MECHANISM'],
-                        'sasl.username': config['KAFKA_USERNAME'],
-                        'sasl.password': config['KAFKA_PASSWORD']})
-        self.consumer = Consumer(cfg)
-        self.consumer.subscribe([config['TOPIC_NEW']])
+        self.consumer = KafkaConsumer(config['TOPIC_NEW'],
+                                 bootstrap_servers=config['BOOTSTRAP_SERVERS'],
+                                 security_protocol=config['KAFKA_SECURITY_PROTOCOL'],
+                                 sasl_mechanism=config['KAFKA_SASL_MECHANISM'],
+                                 sasl_plain_username=config['KAFKA_USERNAME'],
+                                 sasl_plain_password=config['KAFKA_PASSWORD'],
+                                 enable_auto_commit=False,
+                                 heartbeat_interval_ms=2000,
+                                 group_id=config['CLUSTER_AGENT_NEW_GROUP'],
+                                 value_deserializer=lambda x: json.loads(x.decode('utf-8')))
         self.stat_send = StatusSender()
         self.script_name = None
         self.job_name_suffix = '_CLAG'
@@ -280,13 +261,21 @@ class WorkingAgent:
     def is_job_gpu(self, slurm_pars):
         return self.get_job_type(slurm_pars) == 'gpu'
 
-    def get_runner_batch_cmd(self, input_job_id, script, msg=None, job_id=None,):
+    def write_job_config(self, job_config):
+        if not os.path.isdir(config['SHARED_TMP']):
+            os.makedirs(config['SHARED_TMP'])
+        tfile = tempfile.NamedTemporaryFile(dir=config['SHARED_TMP'], mode="w+", delete=False)
+        json.dump(job_config, tfile)
+        tfile.flush()
+        return tfile.name
+
+    def get_runner_batch_cmd(self, input_job_id, script, msg=None, job_id=None):
         # TODO - override the method according to your needs
         cmd = os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
+        if msg:
+            cmd += ' cfg_file=' + self.write_job_config(msg)
         if job_id:
             cmd += ' job_id=' + str(job_id)
-        if msg:
-            cmd += ' ' + str(msg)
         return cmd
 
     @staticmethod
@@ -314,19 +303,18 @@ class WorkerAgent(WorkingAgent):
         i = 0
         while self.queue.qsize() < self.workers and i < self.workers*4:
             i += 1
-            job = self.consumer.poll(2.0)
+            new_jobs = self.consumer.poll(max_records=max(math.floor(self.workers / config['SLURM_RESOURCES_REQUIRED']), 1),
+                                          timeout_ms=2000)
             #self.logger.info('Got {} new jobs'.format(len(new_jobs)))
-            if job is None:
-                continue
-            if job.error():
-                self.logger.error("Consumer error: {}".format(job.error()))
-            self.logger.debug(job)
-            msg = ast.literal_eval(job.value().decode('utf-8'))
-            self.logger.debug(msg['input_job_id'])
-            job_id = self.unique_id()
-            cmd = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
-            self.queue.put((job_id, msg['input_job_id'], cmd))
-            self.stat_send.send(msg['input_job_id'], 'SUBMITTED', job_id)
+            for job in new_jobs.items():
+                self.logger.info(job)
+                for el in job[1]:
+                    msg = el.value
+                    self.logger.debug(msg['input_job_id'])
+                    job_id = self.unique_id()
+                    cmd = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
+                    self.queue.put((job_id, msg['input_job_id'], cmd))
+                    self.stat_send.send(msg['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
 
     def check_job_status(self, input_job_id):
@@ -356,21 +344,19 @@ class ClusterAgent(WorkingAgent):
         w = self.slurm_check_jobs_waiting()
         self.logger.info('Waiting: {}'.format(w))
         if w <= 1:
-            to_poll = max(math.floor(free / config['SLURM_RESOURCES_REQUIRED']), 1)
-            self.logger.info('Polling: {}'.format(max(math.floor(free/config['SLURM_RESOURCES_REQUIRED']), 1)))
-            for i in range(to_poll):
-                job = self.consumer.poll(2.0)
-                #self.logger.info('Got {} new jobs'.format(len(new_jobs)))
-                if job is None:
-                    continue
-                if job.error():
-                    self.logger.error("Consumer error: {}".format(job.error()))
+            self.logger.info('Polling: {}'.format(max(math.floor(free / config['SLURM_RESOURCES_REQUIRED']), 1)))
+            new_jobs = self.consumer.poll(max_records=max(math.floor(free / config['SLURM_RESOURCES_REQUIRED']), 1),
+                                          timeout_ms=2000)
+            self.logger.info('Got {} new jobs'.format(len(new_jobs)))
+            for job in new_jobs.items():
                 self.logger.debug(job)
-                msg = ast.literal_eval(job.value().decode('utf-8'))
-                self.logger.debug(msg['input_job_id'])
-                job_id = self.submit_slurm_job(msg['input_job_id'], msg['script'], msg['slurm_pars'], msg)
-                self.stat_send.send(msg['input_job_id'], 'SUBMITTED', int(job_id))
+                for el in job[1]:
+                    self.logger.debug(el.value['input_job_id'])
+                    #msg = ast.literal_eval(job.value().decode('utf-8'))
+                    job_id = self.submit_slurm_job(el.value['input_job_id'], el.value['script'], el.value['slurm_pars'], el.value)
+                    self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
+
 
     @staticmethod
     def check_job_status(job_id):
@@ -389,11 +375,13 @@ class ClusterAgent(WorkingAgent):
         if not script:
             script = self.script_name
         job_name = self.get_job_name(input_job_id)
-        prefix = config['PREFIX']
-        slurm_pars = {'cpus_per_task': slurm_params['RESOURCES_REQUIRED'] if slurm_params and 'RESOURCES_REQUIRED' in slurm_params else config['SLURM_RESOURCES_REQUIRED'],
+        slurm_out_dir = config['SLURM_OUT_DIR'] if 'SLURM_OUT_DIR' in config else config['PREFIX']
+        slurm_pars = {'cpus_per_task': slurm_params[
+            'RESOURCES_REQUIRED'] if slurm_params and 'RESOURCES_REQUIRED' in slurm_params else config[
+            'SLURM_RESOURCES_REQUIRED'],
                       'job_name': job_name,
                       'partition': config['SLURM_PARTITION'],
-                      'output': f'{prefix}slurm/{job_name}-{Slurm.JOB_ARRAY_MASTER_ID}.out'
+                      'output': f'{slurm_out_dir}/{job_name}-{Slurm.JOB_ARRAY_MASTER_ID}.out'
                       }
         if 'MEM' in slurm_params:
             slurm_pars['mem'] = slurm_params['MEM']

@@ -51,12 +51,12 @@ async def check_statuses(app):
 
 # @app.page('/stats/')
 # async def get_stat(web, request):
-#     statuses = {}
-#     for key in job_status.keys():
-#         statuses[key] = job_status[key]
-#     return web.json({
-#         'result': statuses,
-#     })
+#      statuses = {}
+#      for key in job_status.keys():
+#          statuses[key] = job_status[key]
+#      return web.json({
+#          'result': statuses,
+#      })
 
 
 if __name__ == '__main__':

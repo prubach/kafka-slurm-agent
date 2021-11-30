@@ -2,6 +2,7 @@ from os.path import expanduser, join
 import faust
 
 #PREFIX = join(expanduser("~"), 'my_kafka_slurm')
+#SHARED_TMP = PREFIX + '/tmp'
 DEBUG = True
 CLUSTER_NAME = 'my_cluster'
 CLUSTER_AGENT_CLASS = 'my_cluster_agent.MyClusterAgent'
