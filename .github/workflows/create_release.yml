@@ -23,7 +23,7 @@ jobs:
           release_name: Release ${{ github.ref }}
           body: |
             Changes in this Release
-            - First Change
-            - Second Change
+            - Added runner that enables creating and deleting topics
+            - WorkerAgent and CluserAgent should now be working
           draft: false
           prerelease: false
