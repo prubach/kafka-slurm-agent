@@ -79,9 +79,18 @@ def setupLogger(directory, name, file_name=None):
 
 
 class ClusterComputing:
-    def __init__(self, input_job_id):
+    def __init__(self, input_job_id, job_id=None, input_config=None):
         self.input_job_id = input_job_id
-        self.slurm_job_id = os.getenv('SLURM_JOB_ID', -1)
+        is_config = False
+        config_els = []
+        if input_config:
+            for el in input_config:
+                if el.startswith('{'):
+                    is_config = True
+                if is_config:
+                    config_els.append(el)
+            self.job_config = ast.literal_eval(' '.join(config_els))
+        self.slurm_job_id = job_id.split('job_id=')[1] if job_id else os.getenv('SLURM_JOB_ID', -1)
         self.ss = StatusSender()
         self.rs = ResultsSender()
         self.logger = setupLogger(config['LOGS_DIR'], "clustercomputing")
@@ -108,9 +117,9 @@ class ClusterComputing:
 
 class KafkaSender:
     def __init__(self):
-        cfg = {'bootstrap.servers' : config['BOOTSTRAP_SERVERS'],
-                                  'client.id': '{}_{}'.format(config['CLUSTER_NAME'], self.__class__.__name__.lower()),
-                                  'security.protocol': config['KAFKA_SECURITY_PROTOCOL']}
+        cfg = {'bootstrap.servers': config['BOOTSTRAP_SERVERS'], 'client.id': '{}_{}'.format(config['CLUSTER_NAME'],
+                                                                                             self.__class__.__name__.lower()),
+               'security.protocol': config['KAFKA_SECURITY_PROTOCOL']}
         if config['KAFKA_SASL_MECHANISM']:
             cfg.update({'sasl.mechanism': config['KAFKA_SASL_MECHANISM'],
                         'sasl.username': config['KAFKA_USERNAME'],
@@ -271,9 +280,11 @@ class WorkingAgent:
     def is_job_gpu(self, slurm_pars):
         return self.get_job_type(slurm_pars) == 'gpu'
 
-    def get_runner_batch_cmd(self, input_job_id, script, msg=None):
+    def get_runner_batch_cmd(self, input_job_id, script, msg=None, job_id=None,):
         # TODO - override the method according to your needs
         cmd = os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
+        if job_id:
+            cmd += ' job_id=' + str(job_id)
         if msg:
             cmd += ' ' + str(msg)
         return cmd
@@ -312,8 +323,8 @@ class WorkerAgent(WorkingAgent):
             self.logger.debug(job)
             msg = ast.literal_eval(job.value().decode('utf-8'))
             self.logger.debug(msg['input_job_id'])
-            cmd = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg)
             job_id = self.unique_id()
+            cmd = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
             self.queue.put((job_id, msg['input_job_id'], cmd))
             self.stat_send.send(msg['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
