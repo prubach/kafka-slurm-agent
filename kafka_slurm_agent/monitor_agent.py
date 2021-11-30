@@ -59,6 +59,16 @@ async def get_stats(web, request, input_job_id):
     })
 
 
+@app.page(config['MONITOR_AGENT_CONTEXT_PATH'] + 'stats/')
+async def get_stat(web, request):
+      statuses = {}
+      for key in job_status.keys():
+          statuses[key] = job_status[key]
+      return web.json({
+          'result': statuses,
+      })
+
+
 def get_new():
     if 'BOOTSTRAP_SERVERS_LOCAL' not in config:
         config['BOOTSTRAP_SERVERS_LOCAL'] = config['BOOTSTRAP_SERVERS']
