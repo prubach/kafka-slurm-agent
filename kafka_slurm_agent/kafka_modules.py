@@ -217,10 +217,11 @@ class WorkerRunner(Thread):
                 self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
                 self.processing.append(input_job_id)
                 os.environ["SLURM_JOB_ID"] = job_id
-                rcode, out = WorkingAgent.run_command(cmd, config['WORKER_JOB_TIMEOUT'])
+                rcode, out, error = WorkingAgent.run_command(cmd, config['WORKER_JOB_TIMEOUT'])
                 if rcode != 0:
                     self.logger.error('Return code {}: {}'.format(job_id, rcode))
                     self.logger.error('OUT[{}]: {}'.format(job_id, out))
+                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname())
                 else:
                     self.logger.info('Return code {}: {}'.format(job_id, rcode))
                     self.logger.info('OUT[{}]: {}'.format(job_id, out))
@@ -230,7 +231,7 @@ class WorkerRunner(Thread):
             finally:
                 self.processing.remove(input_job_id)
                 if not finished_ok:
-                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}'.format(rcode, out))
+                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error))
                 self.logger.info('Finalizing job {}: {}'.format(job_id, cmd))
                 self.queue.task_done()
 
@@ -282,7 +283,7 @@ class WorkingAgent:
     def run_command(cmd, timeout=10):
         comd = Command(cmd)
         comd.run(timeout=timeout)
-        return comd.getReturnCode(), comd.getOut()
+        return comd.getReturnCode(), comd.getOut(), comd.getError()
 
 
 class WorkerAgent(WorkingAgent):
@@ -393,7 +394,7 @@ class ClusterAgent(WorkingAgent):
         return slurm_job_id
 
     def slurm_check_jobs_waiting(self):
-        _, res = self.run_command('squeue -o "%j %R %u" | grep ' + getpass.getuser() + ' | grep ' + self.job_name_suffix)
+        _, res, _ = self.run_command('squeue -o "%j %R %u" | grep ' + getpass.getuser() + ' | grep ' + self.job_name_suffix)
         waiting = 0
         if res:
             lines = res.splitlines()
@@ -405,7 +406,7 @@ class ClusterAgent(WorkingAgent):
 
     @staticmethod
     def slurm_get_idle_gpus(state='idle'):
-        _, res = ClusterAgent.run_command('sinfo -o "%G %.3D %.6t %P" | grep ' + state + ' | grep gpu | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
+        _, res, _ = ClusterAgent.run_command('sinfo -o "%G %.3D %.6t %P" | grep ' + state + ' | grep gpu | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
         if res:
             lines = res.splitlines()
             gpus = 0
@@ -418,7 +419,7 @@ class ClusterAgent(WorkingAgent):
 
     @staticmethod
     def slurm_get_idle_cpus():
-        _, res = ClusterAgent.run_command('sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
+        _, res, _ = ClusterAgent.run_command('sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
         if res:
             lines = res.splitlines()
             cpus = 0
