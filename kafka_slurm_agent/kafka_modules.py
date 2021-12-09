@@ -127,7 +127,7 @@ class KafkaSender:
 
 
 class StatusSender(KafkaSender):
-    def send(self, jobid, status, job_id=None, node=None, error=None):
+    def send(self, jobid, status, job_id=None, node=None, error=None, custom_msg=None):
         val = {'status': status, 'cluster': config['CLUSTER_NAME'], 'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         if job_id:
             val['job_id'] = job_id
@@ -135,6 +135,8 @@ class StatusSender(KafkaSender):
             val['node'] = node
         if error:
             val['error'] = error
+        if custom_msg:
+            val['message'] = custom_msg
         self.producer.send(config['TOPIC_STATUS'], key=jobid.encode('utf-8'), value=val)
 
     def remove(self, jobid):
