@@ -223,12 +223,13 @@ class WorkerRunner(Thread):
                 if rcode != 0:
                     self.logger.error('Return code {}: {}'.format(job_id, rcode))
                     self.logger.error('OUT[{}]: {}'.format(job_id, out))
-                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname())
+                    #self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error))
                 else:
                     self.logger.info('Return code {}: {}'.format(job_id, rcode))
                     self.logger.info('OUT[{}]: {}'.format(job_id, out))
+                    self.logger.info('ERROR[{}]: {}'.format(job_id, error))
                     finished_ok = True
-                    self.stat_send.send(input_job_id, 'DONE', job_id, node=socket.gethostname())
+                    #self.stat_send.send(input_job_id, 'DONE', job_id, node=socket.gethostname())
                 self.logger.info('Finished job {}: {}'.format(job_id, cmd))
             finally:
                 self.processing.remove(input_job_id)
