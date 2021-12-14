@@ -402,8 +402,9 @@ class ClusterAgent(WorkingAgent):
         if res:
             lines = res.splitlines()
             for line in lines:
-                jobname, status, user = line.strip().split(" ")
-                if jobname.endswith(self.job_name_suffix) and status.startswith('('):
+                results = line.strip().split(" ")
+                jobname, status, user = results[:3]
+                if jobname.endswith(self.job_name_suffix) and status.startswith('(') and not status.startswith('(launch'):
                     waiting += 1
         return waiting
 
@@ -422,16 +423,22 @@ class ClusterAgent(WorkingAgent):
 
     @staticmethod
     def slurm_get_idle_cpus():
-        _, res, _ = ClusterAgent.run_command('sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
+        _, res, _ = ClusterAgent.run_command(
+            'sinfo -o "%C %.3D %.6t %P" | grep idle | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
+        cpus = 0
         if res:
             lines = res.splitlines()
-            cpus = 0
             for line in lines:
                 els = line.strip().split(" ")
                 cpus += int(els[0].split("/")[1].strip())
-            return cpus
-        else:
-            return 0
+        _, res, _ = ClusterAgent.run_command(
+            'sinfo -o "%C %.3D %.6t %P" | grep mix | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
+        if res:
+            lines = res.splitlines()
+            for line in lines:
+                els = line.strip().split(" ")
+                cpus += int(els[0].split("/")[1].strip())
+        return cpus
 
 
 class DataUpdaterException(Exception):
