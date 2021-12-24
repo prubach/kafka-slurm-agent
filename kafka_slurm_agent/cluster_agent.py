@@ -4,7 +4,7 @@ import os
 import faust
 import sys
 from pydoc import locate
-from kafka_slurm_agent.kafka_modules import config
+from kafka_slurm_agent.kafka_modules import config, HeartbeatSender
 from concurrent.futures import ThreadPoolExecutor
 
 app = faust.App(config['CLUSTER_NAME'] + '_cluster_agent',
@@ -23,6 +23,7 @@ thread_pool = ThreadPoolExecutor(max_workers=1)
 sys.path.append(os.getcwd())
 ca_class = locate(config['CLUSTER_AGENT_CLASS'])
 ca = ca_class()
+heartbeat_sender = HeartbeatSender()
 
 
 def run_cluster_agent_check():
@@ -48,6 +49,11 @@ async def process(stream):
 async def check_statuses(app):
     app.loop.run_in_executor(executor=thread_pool, func=run_cluster_agent_check)
 
+
+@app.timer(interval=config['HEARTBEAT_INTERVAL'] if config['HEARTBEAT_INTERVAL'] > 0 else 1440000)
+async def send_heartbeat(app):
+    if config['HEARTBEAT_INTERVAL'] > 0:
+        heartbeat_sender.send()
 
 # @app.page('/stats/')
 # async def get_stat(web, request):

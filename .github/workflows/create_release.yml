@@ -23,7 +23,6 @@ jobs:
           release_name: Release ${{ github.ref }}
           body: |
             Changes in this Release
-            - Added runner that enables creating and deleting topics
-            - WorkerAgent and CluserAgent should now be working
+            - Added heartbeat to worker and cluster to send regularly
           draft: false
           prerelease: false

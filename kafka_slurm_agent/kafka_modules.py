@@ -35,7 +35,8 @@ config_defaults = {
     'KAFKA_USERNAME': None,
     'KAFKA_PASSWORD': None,
     'WORKER_AGENT_MAX_WORKERS': 2,
-    'WORKER_JOB_TIMEOUT': 86400  # = 24h
+    'WORKER_JOB_TIMEOUT': 86400,  # = 24h
+    'HEARTBEAT_INTERVAL': 0.0
 }
 
 
@@ -147,6 +148,12 @@ class ResultsSender(KafkaSender):
     def send(self, jobid, results):
         results['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.producer.send(config['TOPIC_DONE'], key=jobid.encode('utf-8'), value={'results': results})
+
+
+class HeartbeatSender(KafkaSender):
+    def send(self):
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.producer.send(config['TOPIC_HEARTBEAT'], key=config['CLUSTER_NAME'].encode('utf-8'), value={'timestamp': timestamp})
 
 
 class ErrorSender(KafkaSender):
