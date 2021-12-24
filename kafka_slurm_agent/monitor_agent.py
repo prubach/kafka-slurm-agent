@@ -17,6 +17,7 @@ jobs_topic = app.topic(config['TOPIC_STATUS'])
 done_topic = app.topic(config['TOPIC_DONE'], partitions=1)
 error_topic = app.topic(config['TOPIC_ERROR'], partitions=1)
 new_topic = app.topic(config['TOPIC_NEW'])
+heartbeat_topic = app.topic(config['TOPIC_HEARTBEAT'])
 job_status = app.Table('job_status', default='')
 
 
