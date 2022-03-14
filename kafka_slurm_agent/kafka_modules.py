@@ -92,7 +92,7 @@ class ClusterComputing:
             #self.rs.send(self.struct_name, self.results)
             self.ss.send(self.struct_name, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
         except Exception as e:
-            desc_exc = traceback.format_exc()
+            desc_exc = traceback.format_exc()[:10000]
             self.ss.send(self.struct_name, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=desc_exc)
             self.logger.error(desc_exc)
 
