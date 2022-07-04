@@ -102,14 +102,18 @@ class ClusterComputing:
 
     def compute(self):
         self.ss.send(self.input_job_id, 'RUNNING', job_id=self.slurm_job_id, node=socket.gethostname())
-        try:
+        if 'ExecutorType' in self.job_config and self.job_config['ExecutorType']=='WRK_AGNT':
             self.do_compute()
-            #self.rs.send(self.struct_name, self.results)
             self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
-        except Exception as e:
-            desc_exc = traceback.format_exc()
-            self.ss.send(self.input_job_id, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=desc_exc)
-            self.logger.error(desc_exc)
+        else:
+            try:
+                self.do_compute()
+                self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
+            except Exception as e:
+                desc_exc = traceback.format_exc()
+                self.ss.send(self.input_job_id, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=str(e) + '\n' + desc_exc[:2000] if len(desc_exc)>2000 else desc_exc)
+                self.logger.error(desc_exc)
+                self.logger.error(str(e))
 
     def __del__(self):
         self.ss.producer.flush()
@@ -223,14 +227,15 @@ class WorkerRunner(Thread):
             finished_ok = False
             try:
                 self.logger.info('Starting job {}: {}'.format(job_id, cmd))
-                self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
+                #self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
                 self.processing.append(input_job_id)
                 os.environ["SLURM_JOB_ID"] = job_id
                 rcode, out, error = WorkingAgent.run_command(cmd, config['WORKER_JOB_TIMEOUT'])
                 if rcode != 0:
+                    finished_ok = False
                     self.logger.error('Return code {}: {}'.format(job_id, rcode))
                     self.logger.error('OUT[{}]: {}'.format(job_id, out))
-                    #self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error))
+                    self.logger.error('ERROR[{}]: {}'.format(job_id, error))
                 else:
                     self.logger.info('Return code {}: {}'.format(job_id, rcode))
                     self.logger.info('OUT[{}]: {}'.format(job_id, out))
@@ -239,11 +244,12 @@ class WorkerRunner(Thread):
                     #self.stat_send.send(input_job_id, 'DONE', job_id, node=socket.gethostname())
                 self.logger.info('Finished job {}: {}'.format(job_id, cmd))
             finally:
-                if input_job_id in self.processing:
-                    self.processing.remove(input_job_id)
+                self.processing.remove(input_job_id)
                 if not finished_ok:
-                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error))
-                self.logger.info('Finalizing job {}: {}'.format(job_id, cmd))
+                    self.logger.info('Sending ERROR job {}: {}'.format(job_id, cmd))
+                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error[:2000] if len(error)>2000 else error))
+                else:
+                    self.logger.info('Finalizing job {}: {}'.format(job_id, cmd))
                 self.queue.task_done()
 
 
@@ -322,6 +328,7 @@ class WorkerAgent(WorkingAgent):
                 self.logger.info(job)
                 for el in job[1]:
                     msg = el.value
+                    msg['ExecutorType']='WRK_AGNT'
                     self.logger.debug(msg['input_job_id'])
                     job_id = self.unique_id()
                     cmd = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
@@ -400,6 +407,8 @@ class ClusterAgent(WorkingAgent):
         if self.is_job_gpu(slurm_params):
             slurm_pars['gres'] = 'gpu'
         slurm = Slurm(**slurm_pars)
+        if msg:
+            msg['ExecutorType'] = 'CL_AGNT'
         slurm_job_id = slurm.sbatch(self.get_runner_batch_cmd(input_job_id, script, msg))
         self.logger.info('Submitted: {}, id: {}'.format(input_job_id, slurm_job_id))
         return slurm_job_id
