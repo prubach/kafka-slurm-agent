@@ -282,7 +282,7 @@ class WorkingAgent:
 
     def get_job_name(self, input_job_id):
         # TODO - override the method according to your needs
-        return input_job_id
+        return input_job_id + self.job_name_suffix
 
     def get_job_type(self, slurm_pars):
         return slurm_pars['JOB_TYPE'] if slurm_pars and 'JOB_TYPE' in slurm_pars else config['SLURM_JOB_TYPE']
