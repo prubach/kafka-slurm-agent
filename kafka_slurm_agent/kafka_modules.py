@@ -6,6 +6,7 @@ import os.path
 import socket
 import sys
 import tempfile
+import time
 import traceback
 import urllib
 import datetime
@@ -15,6 +16,7 @@ from threading import Thread
 from urllib.error import URLError
 
 from kafka import KafkaConsumer, KafkaProducer
+from kafka.errors import NoBrokersAvailable
 from simple_slurm import Slurm
 import getpass
 from os.path import expanduser
@@ -120,16 +122,25 @@ class ClusterComputing:
         self.rs.producer.flush()
 
 
+
+
 class KafkaSender:
     def __init__(self):
-        self.producer = KafkaProducer(bootstrap_servers=config['BOOTSTRAP_SERVERS'],
+        try:
+            self.producer = self.init_producer()
+        except NoBrokersAvailable as e:
+            time.sleep(2)
+            self.producer = self.init_producer()
+
+
+    def init_producer(self):
+        return KafkaProducer(bootstrap_servers=config['BOOTSTRAP_SERVERS'],
                                       client_id='{}_{}'.format(config['CLUSTER_NAME'], self.__class__.__name__.lower()),
                                       security_protocol=config['KAFKA_SECURITY_PROTOCOL'],
                                       sasl_mechanism=config['KAFKA_SASL_MECHANISM'],
                                       sasl_plain_username=config['KAFKA_USERNAME'],
                                       sasl_plain_password=config['KAFKA_PASSWORD'],
                                       value_serializer=lambda v: json.dumps(v).encode('utf-8'))
-
 
 class StatusSender(KafkaSender):
     def send(self, jobid, status, job_id=None, node=None, error=None, custom_msg=None):
