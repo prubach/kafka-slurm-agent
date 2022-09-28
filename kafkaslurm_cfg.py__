@@ -37,6 +37,7 @@ MONITOR_AGENT_CONTEXT_PATH ='mon/'
 
 SLURM_PARTITION ='long'
 # SLURM_MEM = '15gb'            # MEMORY REQUIRED FOR SLURM JOB
+# SLURM_EXCLUDE = 'node1'       # Exclude some nodes from submission (optional)
 SLURM_JOB_TYPE = 'gpu'  # GPU, CPU
 SLURM_RESOURCES_REQUIRED = 1  # #OF CPUS OR GPUS PER JOB
 

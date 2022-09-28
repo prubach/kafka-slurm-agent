@@ -371,6 +371,8 @@ class ClusterAgent(WorkingAgent):
         func_name = 'self.slurm_get_idle_' + self.get_job_type(None) + 's'
         free = eval(func_name + "()")
         self.logger.info('Free {}s: {}'.format(config['SLURM_JOB_TYPE'].upper(), free))
+        if 'SLURM_EXCLUDE' in config and config['SLURM_EXCLUDE'] != '':
+            self.logger.info('Excluded nodes: {}/{}'.format(config['SLURM_EXCLUDE'], ClusterAgent.slurm_get_idle_excluded_cpus()))
         w = self.slurm_check_jobs_waiting()
         self.logger.info('Waiting: {}'.format(w))
         if w <= 1:
@@ -417,6 +419,8 @@ class ClusterAgent(WorkingAgent):
             slurm_pars['mem'] = slurm_params['MEM']
         if self.is_job_gpu(slurm_params):
             slurm_pars['gres'] = 'gpu'
+        if 'SLURM_EXCLUDE' in config and config['SLURM_EXCLUDE'] != '':
+            slurm_pars['exclude'] = config['SLURM_EXCLUDE']
         slurm = Slurm(**slurm_pars)
         if msg:
             msg['ExecutorType'] = 'CL_AGNT'
@@ -466,7 +470,23 @@ class ClusterAgent(WorkingAgent):
             for line in lines:
                 els = line.strip().split(" ")
                 cpus += int(els[0].split("/")[1].strip())
-        return cpus
+        # Exclude cpus of excluded nodes
+        excl_cpus = 0
+        if 'SLURM_EXCLUDE' in config and config['SLURM_EXCLUDE'] != '':
+            excl_cpus = ClusterAgent.slurm_get_idle_excluded_cpus()
+        return cpus - excl_cpus
+
+    @staticmethod
+    def slurm_get_idle_excluded_cpus():
+        excl_cpus = 0
+        for node in config['SLURM_EXCLUDE'].split(','):
+            _, res, _ = ClusterAgent.run_command(
+                'sinfo --Node --long | grep ' + node + ' | grep ' + config['SLURM_PARTITION'] + "| awk '{print $5}'")
+            if res:
+                lines = res.splitlines()
+                for line in lines:
+                    excl_cpus += int(line.strip())
+        return excl_cpus
 
 
 class DataUpdaterException(Exception):
