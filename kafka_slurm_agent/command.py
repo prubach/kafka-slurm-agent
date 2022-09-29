@@ -78,7 +78,7 @@ class Command(object):
             kill(
                 self.process.pid)  # using psutil, but could be written without it - searching in processes for children.
             thread.join()
-            raise Exception('Processing binary file has been terminated by timeout. Error? Loop?')
+            raise TimeoutError('Processing binary file has been terminated by timeout. Error? Loop?')
         if self.process:
             self.rcode = self.process.returncode
 

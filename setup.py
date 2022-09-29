@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="kafka_slurm_agent",
-    version='0.6.1',
+    version='0.6.2',
     author="Paweł Rubach",
     author_email="pawel.rubach@gmail.com",
     description="The Kafka Slurm Agent is a tool for submitting computing tasks to the Slurm queues on multiple "
@@ -25,7 +25,7 @@ setup(
         'console_scripts': ['kafka-slurm=kafka_slurm_agent.runner:run'],
     },
     install_requires=[
-        'simple-slurm', 'kafka-python', 'psutil>=5.6.6', 'python-math', 'faust-streaming', 'werkzeug'
+        'simple-slurm', 'kafka-python', 'psutil>=5.6.6', 'python-math', 'faust-streaming', 'werkzeug', 'wrapt-timeout-decorator'
     ],
     python_requires='>=3.6.0',
     classifiers=[

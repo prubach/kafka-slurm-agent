@@ -21,6 +21,8 @@ from simple_slurm import Slurm
 import getpass
 from os.path import expanduser
 
+from wrapt_timeout_decorator import timeout
+
 from kafka_slurm_agent.command import Command
 from kafka_slurm_agent.config_module import Config
 
@@ -102,15 +104,41 @@ class ClusterComputing:
     def do_compute(self):
         pass
 
+    def do_compute_timeout(self):
+        timeout(dec_timeout=self.timeout, use_signals=True)(self.do_compute)()
+
     def compute(self):
+        self.timeout = None
+        if 'JOB_TIMEOUT' in config and config['JOB_TIMEOUT']:
+            self.timeout = config['JOB_TIMEOUT']
+            print('timeout from config: {}'.format(self.timeout))
+        if 'timeout' in self.job_config['slurm_pars'] and self.job_config['slurm_pars']['timeout']:
+            self.timeout = int(self.job_config['slurm_pars']['timeout'])
+            print('timeout from job config: {}'.format(self.timeout))
         self.ss.send(self.input_job_id, 'RUNNING', job_id=self.slurm_job_id, node=socket.gethostname())
         if 'ExecutorType' in self.job_config and self.job_config['ExecutorType']=='WRK_AGNT':
+            #if self.timeout:
+            #    try:
+            #        self.do_compute_timeout()
+            #    except TimeoutError as te:
+            #        self.ss.send(self.input_job_id, 'TIMEOUT', job_id=self.slurm_job_id, node=socket.gethostname(),
+            #                     error='Timeout after {}'.format(self.timeout))
+            #        self.logger.error('Timeout job {} after {}'.format(self.input_job_id, self.slurm_job_id,
+            #                                                                       self.timeout))
+            #else:
             self.do_compute()
             self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
         else:
             try:
-                self.do_compute()
+                if self.timeout:
+                    self.do_compute_timeout()
+                else:
+                    self.do_compute()
                 self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
+            except TimeoutError as te:
+                self.ss.send(self.input_job_id, 'TIMEOUT', job_id=self.slurm_job_id, node=socket.gethostname(),
+                             error='Timeout after {}'.format(self.timeout))
+                self.logger.error('Timeout job {} slurm ID {} after {}'.format(self.input_job_id, self.slurm_job_id, self.timeout))
             except Exception as e:
                 desc_exc = traceback.format_exc()
                 self.ss.send(self.input_job_id, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=str(e) + '\n' + desc_exc[:2000] if len(desc_exc)>2000 else desc_exc)
@@ -234,14 +262,17 @@ class WorkerRunner(Thread):
 
     def run(self):
         while True:
-            job_id, input_job_id, cmd = self.queue.get()
+            job_id, input_job_id, cmd, time_out = self.queue.get()
             finished_ok = False
+            rcode = -1000
             try:
                 self.logger.info('Starting job {}: {}'.format(job_id, cmd))
                 #self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
                 self.processing.append(input_job_id)
                 os.environ["SLURM_JOB_ID"] = job_id
-                rcode, out, error = WorkingAgent.run_command(cmd, config['WORKER_JOB_TIMEOUT'])
+                if not time_out:
+                    time_out = config['WORKER_JOB_TIMEOUT'] 
+                rcode, out, error = WorkingAgent.run_command(cmd, time_out)
                 if rcode != 0:
                     finished_ok = False
                     self.logger.error('Return code {}: {}'.format(job_id, rcode))
@@ -254,6 +285,11 @@ class WorkerRunner(Thread):
                     finished_ok = True
                     #self.stat_send.send(input_job_id, 'DONE', job_id, node=socket.gethostname())
                 self.logger.info('Finished job {}: {}'.format(job_id, cmd))
+            except TimeoutError as te:
+                self.stat_send.send(input_job_id, 'TIMEOUT', job_id, node=socket.gethostname(),
+                                    error='Timeout {}: {}, {}'.format(input_job_id, job_id, time_out))
+                finished_ok = True                
+                self.logger.error('TIMEOUT [{}: {}, {}]'.format(input_job_id, job_id, time_out))
             finally:
                 self.processing.remove(input_job_id)
                 if not finished_ok:
@@ -301,11 +337,14 @@ class WorkingAgent:
     def get_runner_batch_cmd(self, input_job_id, script, msg=None, job_id=None):
         # TODO - override the method according to your needs
         cmd = os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
+        time_out = None
         if msg:
+            if 'TIMEOUT' in msg['slurm_pars']:
+                time_out = int(msg['slurm_pars']['TIMEOUT'])
             cmd += ' cfg_file=' + self.write_job_config(msg)
         if job_id:
             cmd += ' job_id=' + str(job_id)
-        return cmd
+        return cmd, time_out
 
     @staticmethod
     def run_command(cmd, timeout=10):
@@ -342,8 +381,8 @@ class WorkerAgent(WorkingAgent):
                     msg['ExecutorType']='WRK_AGNT'
                     self.logger.debug(msg['input_job_id'])
                     job_id = self.unique_id()
-                    cmd = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
-                    self.queue.put((job_id, msg['input_job_id'], cmd))
+                    cmd, time_out = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
+                    self.queue.put((job_id, msg['input_job_id'], cmd, time_out))
                     self.stat_send.send(msg['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
 
@@ -424,7 +463,8 @@ class ClusterAgent(WorkingAgent):
         slurm = Slurm(**slurm_pars)
         if msg:
             msg['ExecutorType'] = 'CL_AGNT'
-        slurm_job_id = slurm.sbatch(self.get_runner_batch_cmd(input_job_id, script, msg))
+        cmd, time_out = self.get_runner_batch_cmd(input_job_id, script, msg)
+        slurm_job_id = slurm.sbatch(cmd)
         self.logger.info('Submitted: {}, id: {}'.format(input_job_id, slurm_job_id))
         return slurm_job_id
 
