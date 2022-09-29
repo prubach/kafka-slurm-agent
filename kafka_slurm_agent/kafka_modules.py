@@ -105,15 +105,15 @@ class ClusterComputing:
         pass
 
     def do_compute_timeout(self):
-        timeout(dec_timeout=self.timeout, use_signals=True)(self.do_compute)()
+        timeout(dec_timeout=self.timeout, use_signals=False)(self.do_compute)()
 
     def compute(self):
         self.timeout = None
         if 'JOB_TIMEOUT' in config and config['JOB_TIMEOUT']:
             self.timeout = config['JOB_TIMEOUT']
             print('timeout from config: {}'.format(self.timeout))
-        if 'timeout' in self.job_config['slurm_pars'] and self.job_config['slurm_pars']['timeout']:
-            self.timeout = int(self.job_config['slurm_pars']['timeout'])
+        if 'TIMEOUT' in self.job_config['slurm_pars'] and self.job_config['slurm_pars']['TIMEOUT']:
+            self.timeout = int(self.job_config['slurm_pars']['TIMEOUT'])
             print('timeout from job config: {}'.format(self.timeout))
         self.ss.send(self.input_job_id, 'RUNNING', job_id=self.slurm_job_id, node=socket.gethostname())
         if 'ExecutorType' in self.job_config and self.job_config['ExecutorType']=='WRK_AGNT':
@@ -136,6 +136,7 @@ class ClusterComputing:
                     self.do_compute()
                 self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
             except TimeoutError as te:
+                print('TIMEOUT fot job: input ID {} Slurm ID {} after {}'.format(self.input_job_id, self.slurm_job_id, self.timeout))
                 self.ss.send(self.input_job_id, 'TIMEOUT', job_id=self.slurm_job_id, node=socket.gethostname(),
                              error='Timeout after {}'.format(self.timeout))
                 self.logger.error('Timeout job {} slurm ID {} after {}'.format(self.input_job_id, self.slurm_job_id, self.timeout))
