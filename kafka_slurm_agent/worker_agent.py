@@ -31,7 +31,7 @@ def run_cluster_agent_check():
         if key in job_status.keys():
             js = ast.literal_eval(str(job_status[key]))
             if js['cluster'] == config['WORKER_NAME'] and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
-                status, reason = ca.check_job_status(js['job_id'])
+                status, reason, _ = ca.check_job_status(js['job_id'])
                 if not status:
                     ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from slurm queue')
                 elif js['status'] != status:

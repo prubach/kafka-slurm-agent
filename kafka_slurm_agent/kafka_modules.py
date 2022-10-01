@@ -109,9 +109,6 @@ class ClusterComputing:
 
     def compute(self):
         self.timeout = None
-        if 'JOB_TIMEOUT' in config and config['JOB_TIMEOUT']:
-            self.timeout = config['JOB_TIMEOUT']
-            print('timeout from config: {}'.format(self.timeout))
         if 'TIMEOUT' in self.job_config['slurm_pars'] and self.job_config['slurm_pars']['TIMEOUT']:
             self.timeout = int(self.job_config['slurm_pars']['TIMEOUT'])
             print('timeout from job config: {}'.format(self.timeout))
@@ -145,12 +142,11 @@ class ClusterComputing:
                 self.ss.send(self.input_job_id, 'ERROR', job_id=self.slurm_job_id, node=socket.gethostname(), error=str(e) + '\n' + desc_exc[:2000] if len(desc_exc)>2000 else desc_exc)
                 self.logger.error(desc_exc)
                 self.logger.error(str(e))
+            self.ss.producer.flush()
 
     def __del__(self):
         self.ss.producer.flush()
         self.rs.producer.flush()
-
-
 
 
 class KafkaSender:
@@ -161,7 +157,6 @@ class KafkaSender:
             time.sleep(2)
             self.producer = self.init_producer()
 
-
     def init_producer(self):
         return KafkaProducer(bootstrap_servers=config['BOOTSTRAP_SERVERS'],
                                       client_id='{}_{}'.format(config['CLUSTER_NAME'], self.__class__.__name__.lower()),
@@ -170,6 +165,7 @@ class KafkaSender:
                                       sasl_plain_username=config['KAFKA_USERNAME'],
                                       sasl_plain_password=config['KAFKA_PASSWORD'],
                                       value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+
 
 class StatusSender(KafkaSender):
     def send(self, jobid, status, job_id=None, node=None, error=None, custom_msg=None):
@@ -379,7 +375,7 @@ class WorkerAgent(WorkingAgent):
                 self.logger.info(job)
                 for el in job[1]:
                     msg = el.value
-                    msg['ExecutorType']='WRK_AGNT'
+                    msg['ExecutorType'] = 'WRK_AGNT'
                     self.logger.debug(msg['input_job_id'])
                     job_id = self.unique_id()
                     cmd, time_out = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
@@ -389,9 +385,9 @@ class WorkerAgent(WorkingAgent):
 
     def check_job_status(self, input_job_id):
         if input_job_id in self.processing:
-            return 'RUNNING', None
+            return 'RUNNING', None, None
         else:
-            return None, None
+            return None, None, None
 
     def start_workers(self):
         for n in range(self.workers):
@@ -429,19 +425,55 @@ class ClusterAgent(WorkingAgent):
                     self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
 
-
     @staticmethod
     def check_job_status(job_id):
-        cmd = 'squeue -o "%i %R" | grep ' + str(job_id)
+        cmd = 'squeue -o "%i %R %M" | grep ' + str(job_id)
         comd = Command(cmd)
         comd.run(10)
         res = comd.getOut()
         if res:
             res = res.splitlines()[0]
-            res = ''.join(res.strip().split(" ")[1:])
-            return 'WAITING' if res.startswith('(') else 'RUNNING', res
+            node = ''.join(res.strip().split(" ")[1])
+            run_time = ''.join(res.strip().split(" ")[2])
+            print(run_time)
+            return 'WAITING' if node.startswith('(') else 'RUNNING', node, ClusterAgent.parse_run_time(run_time)
         else:
-            return None, None
+            return None, None, None
+
+    @staticmethod
+    def parse_run_time(str_runtime):
+        days = 0
+        hrs = 0
+        if str_runtime.find('-') > 0:
+            days = int(str_runtime.split('-')[0])
+            str_runtime = str_runtime.split('-')[1]
+        hr_min_sec = str_runtime.split(':')
+        if len(hr_min_sec) == 3:
+            hrs = int(hr_min_sec[0])
+            min = int(hr_min_sec[1])
+            sec = int(hr_min_sec[2])
+        else:
+            min = int(hr_min_sec[0])
+            sec = int(hr_min_sec[1])
+        return days * 24 * 60 * 60 + hrs * 60 * 60 + min * 60 + sec
+
+    @staticmethod
+    def cancel_job(job_id):
+        cmd = 'scancel ' + str(job_id)
+        comd = Command(cmd)
+        comd.run(10)
+        i = 0
+        is_running = True
+        while i < 30 and is_running:
+            i+=1
+            cmd = 'squeue -o "%i %R %M" | grep ' + str(job_id)
+            comd = Command(cmd)
+            comd.run(10)
+            res = comd.getOut()
+            if not res:
+                return True
+            time.sleep(1)
+        return False
 
     def submit_slurm_job(self, input_job_id, script, slurm_params, msg=None):
         if not script:

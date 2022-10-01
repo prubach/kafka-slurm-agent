@@ -27,11 +27,21 @@ heartbeat_sender = HeartbeatSender()
 
 
 def run_cluster_agent_check():
+    run_timeout = None
+    if 'CLUSTER_JOB_TIMEOUT' in config and config['CLUSTER_JOB_TIMEOUT']:
+        run_timeout = config['CLUSTER_JOB_TIMEOUT']
     for key in list(job_status.keys()):
         if key in job_status.keys():
             js = ast.literal_eval(str(job_status[key]))
             if js['cluster'] == config['CLUSTER_NAME'] and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
-                status, reason = ca.check_job_status(js['job_id'])
+                status, reason, run_time = ca.check_job_status(js['job_id'])
+                if run_timeout and run_time > run_timeout:
+                    cancel_success = ca.cancel_job(js['job_id'])
+                    if cancel_success:
+                        ca.stat_send.send(key, 'TIMEOUT', js['job_id'], error='Timeout out after {} sec.'.format(run_timeout))
+                    else:
+                        ca.stat_send.send(key, 'ERROR', js['job_id'], error='Timeout after {} sec but couldnt kill'.format(run_timeout))
+                    continue
                 if not status:
                     ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from slurm queue')
                 elif js['status'] != status:
