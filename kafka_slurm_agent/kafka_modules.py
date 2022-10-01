@@ -435,7 +435,6 @@ class ClusterAgent(WorkingAgent):
             res = res.splitlines()[0]
             node = ''.join(res.strip().split(" ")[1])
             run_time = ''.join(res.strip().split(" ")[2])
-            print(run_time)
             return 'WAITING' if node.startswith('(') else 'RUNNING', node, ClusterAgent.parse_run_time(run_time)
         else:
             return None, None, None
