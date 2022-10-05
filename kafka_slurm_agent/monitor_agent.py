@@ -10,6 +10,7 @@ app = faust.App(config['MONITOR_AGENT_NEW_GROUP'] if 'MONITOR_AGENT_NEW_GROUP' i
                 broker_credentials=config['KAFKA_FAUST_BROKER_CREDENTIALS'],
                 #group_id=config['MONITOR_AGENT_NEW_GROUP'],
                 #processing_guarantee='exactly_once',
+                heartbeat_interval_ms=config['MONITOR_HEARTBEAT_INTERVAL_MS'],
                 topic_partitions=1)
 
 #store='rocksdb://',
@@ -26,6 +27,15 @@ job_status = app.Table('job_status', default='')
 async def process_jobs(stream):
     async for event in stream.events():
         job_status[event.key.decode('UTF-8')] = event.value
+
+
+
+@app.page(config['MONITOR_AGENT_CONTEXT_PATH'] + 'done/')
+async def get_stats_done(web, request):
+    cur, log_end, lag = get_monitor_processed()
+    return web.json({
+            'done': {'current': cur, 'all': log_end, 'lag': lag}
+        })
 
 
 @app.page(config['MONITOR_AGENT_CONTEXT_PATH'] + 'sum/')
@@ -92,3 +102,21 @@ def get_new():
             except Exception as e:
                 logger.error('Problem in checking new: {}'.format(e))
     return waiting, running_done, all
+
+
+def get_monitor_processed():
+    if 'BOOTSTRAP_SERVERS_LOCAL' not in config:
+        config['BOOTSTRAP_SERVERS_LOCAL'] = config['BOOTSTRAP_SERVERS']
+    cmd = config['KAFKA_HOME'] + "/bin/kafka-consumer-groups.sh --bootstrap-server " + config['BOOTSTRAP_SERVERS_LOCAL'] + " --describe --group " + config['MONITOR_AGENT_NEW_GROUP'] + "| grep " + config['TOPIC_DONE'] + "| awk '{print $4, $5, $6}'"
+    comd = Command(cmd)
+    comd.run(10)
+    res = comd.getOut()
+    cur = None
+    log_end = None
+    lag = None
+    if res:
+        results = res.split(' ')
+        cur = int(results[0].strip())
+        log_end = int(results[1].strip())
+        lag = int(results[2].strip())
+    return cur, log_end, lag

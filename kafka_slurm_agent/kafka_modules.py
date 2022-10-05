@@ -40,7 +40,9 @@ config_defaults = {
     'KAFKA_PASSWORD': None,
     'WORKER_AGENT_MAX_WORKERS': 2,
     'WORKER_JOB_TIMEOUT': 86400,  # = 24h
-    'HEARTBEAT_INTERVAL': 0.0
+    'HEARTBEAT_INTERVAL': 0.0,
+    'KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS': 3000,
+    'MONITOR_HEARTBEAT_INTERVAL_MS': 3000
 }
 
 
@@ -306,7 +308,7 @@ class WorkingAgent:
                                  sasl_plain_username=config['KAFKA_USERNAME'],
                                  sasl_plain_password=config['KAFKA_PASSWORD'],
                                  enable_auto_commit=False,
-                                 heartbeat_interval_ms=2000,
+                                 heartbeat_interval_ms=config['KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS'],
                                  group_id=config['CLUSTER_AGENT_NEW_GROUP'],
                                  value_deserializer=lambda x: json.loads(x.decode('utf-8')))
         self.stat_send = StatusSender()
