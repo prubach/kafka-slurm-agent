@@ -39,9 +39,8 @@ def run_cluster_agent_check():
             if js['cluster'] == config['CLUSTER_NAME'] and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
                 if key in all_stats:
                     job_id, status, reason, run_time = all_stats[key]
-                    #ca.check_job_status(js['job_id'])
-                    print('{}: {} {} {}'.format(key, status, reason, run_time))
                     if run_timeout and run_time and run_time > run_timeout:
+                        ca.logger.warning('Canceling job {}: {} {} {} {}'.format(key, js['job_id'], status, reason, run_time))
                         cancel_success = ca.cancel_job(js['job_id'])
                         if cancel_success:
                             ca.stat_send.send(key, 'TIMEOUT', js['job_id'], error='Timeout out after {} sec.'.format(run_timeout))
@@ -53,9 +52,11 @@ def run_cluster_agent_check():
                     all_stats.pop(key)
                 else:
                     ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from slurm queue')
-            for k in all_stats.keys():
-                print('No stat {}: {}'.format(k, all_stats[k]))
-    print('Checked {} jobs'.format(i))
+    for k in all_stats.keys():
+        job_id, status, reason, run_time = all_stats[k]
+        ca.stat_send.send(k, status, job_id, node=reason)
+        ca.logger.warning('No status {}: {}'.format(k, all_stats[k]))
+    ca.logger.info('Checked {} jobs'.format(i))
     if not config['MONITOR_ONLY_DO_NOT_SUBMIT']:
         ca.check_queue_submit()
 
