@@ -42,7 +42,8 @@ config_defaults = {
     'WORKER_JOB_TIMEOUT': 86400,  # = 24h
     'HEARTBEAT_INTERVAL': 0.0,
     'KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS': 3000,
-    'MONITOR_HEARTBEAT_INTERVAL_MS': 3000
+    'MONITOR_HEARTBEAT_INTERVAL_MS': 3000,
+    'MONITOR_ONLY_DO_NOT_SUBMIT': False
 }
 
 
@@ -427,6 +428,23 @@ class ClusterAgent(WorkingAgent):
                     self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
 
+    def check_job_statuses(self):
+        cmd = 'squeue -o "%j %i %R %M %u" | grep {} | grep {}'.format(getpass.getuser(), self.job_name_suffix)
+        comd = Command(cmd)
+        comd.run(20)
+        res = comd.getOut()
+        statuses = {}
+        if res:
+            for line in res.splitlines():
+                # 36315_AF2 596717 troll-8 6:53:54 prubach
+                els = line.split(" ")
+                input_job_id = ''.join(els[0][:-len(self.job_name_suffix)])
+                slurm_job_id = ''.join(els[1])
+                node = ''.join(els[2])
+                run_time = ''.join(els[3])
+                statuses[input_job_id] = (slurm_job_id, 'WAITING' if node.startswith('(') else 'RUNNING', node, self.parse_run_time(run_time))
+        return statuses
+
     @staticmethod
     def check_job_status(job_id):
         cmd = 'squeue -o "%i %R %M" | grep ' + str(job_id)
@@ -460,7 +478,7 @@ class ClusterAgent(WorkingAgent):
 
     @staticmethod
     def cancel_job(job_id):
-        cmd = 'scancel ' + str(job_id)
+        cmd = 'scancel {}'.format(job_id)
         comd = Command(cmd)
         comd.run(10)
         i = 0

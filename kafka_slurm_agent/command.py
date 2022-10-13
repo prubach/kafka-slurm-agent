@@ -75,8 +75,8 @@ class Command(object):
         if thread.is_alive():
             # self.process.terminate() # is stoping main process not those run from it - then thread.join() is waiting for shell (and other children) to end!
             # os.killpg(os.getpgid(self.process.pid), signal.SIGKILL) # Send the signal to all the process groups - including this one which is wating for next thread.join()...
-            kill(
-                self.process.pid)  # using psutil, but could be written without it - searching in processes for children.
+            if self.process and self.process.pid:
+                kill(self.process.pid)  # using psutil, but could be written without it - searching in processes for children.
             thread.join()
             raise TimeoutError('Processing binary file has been terminated by timeout. Error? Loop?')
         if self.process:
