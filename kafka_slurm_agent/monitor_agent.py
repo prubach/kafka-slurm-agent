@@ -44,18 +44,24 @@ async def get_stats(web, request):
     running = 0
     error = 0
     waiting = 0
+    timedout = 0
+    submitted = 0
     new_waiting, new_done, new_all = get_new()
     for key in job_status.keys():
         if job_status[key]['status'] == 'DONE':
             done += 1
         elif job_status[key]['status'] == 'ERROR':
             error += 1
+        elif job_status[key]['status'] == 'SUBMITTED':
+            submitted += 1
         elif job_status[key]['status'] == 'WAITING':
             waiting += 1
+        elif job_status[key]['status'] == 'TIMEOUT':
+            timedout += 1
         else:
             running += 1
     return web.json({
-        'jobs': {'waiting': waiting, 'running': running, 'done': done, 'error': error},
+        'jobs': {'submitted': submitted, 'waiting': waiting, 'running': running, 'done': done, 'timeout': timedout, 'error': error},
         'new': {'waiting': new_waiting, 'processed': new_done, 'all':  new_all}
     })
 

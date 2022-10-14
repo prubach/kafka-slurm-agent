@@ -442,7 +442,7 @@ class ClusterAgent(WorkingAgent):
                 slurm_job_id = ''.join(els[1])
                 node = ''.join(els[2])
                 run_time = ''.join(els[3])
-                statuses[input_job_id] = (slurm_job_id, 'WAITING' if node.startswith('(') else 'RUNNING', node, self.parse_run_time(run_time))
+                statuses[input_job_id] = (int(slurm_job_id), 'WAITING' if node.startswith('(') else 'RUNNING', node, self.parse_run_time(run_time))
         return statuses
 
     @staticmethod
