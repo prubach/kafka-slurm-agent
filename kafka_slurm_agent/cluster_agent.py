@@ -51,7 +51,14 @@ def run_cluster_agent_check():
                         ca.stat_send.send(key, status, js['job_id'], node=reason)
                     all_stats.pop(key)
                 else:
-                    ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from slurm queue')
+                    js = ast.literal_eval(str(job_status[key]))
+                    # Make sure status wasn't updated to DONE
+                    if js['cluster'] == config['CLUSTER_NAME'] and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING',
+                                                                                    'UPLOADING']:
+                        ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from slurm queue')
+                    else:
+                        ca.logger.warning(
+                            'Changed status probably to DONE {}: {}'.format(key, js['job_id']))
     for k in all_stats.keys():
         job_id, status, reason, run_time = all_stats[k]
         ca.stat_send.send(k, status, job_id, node=reason)
