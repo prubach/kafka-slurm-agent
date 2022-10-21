@@ -373,6 +373,7 @@ class WorkerAgent(WorkingAgent):
         self.queue = Queue()
         self.processing = []
         self.submitted = []
+        self.is_accepting_jobs = True
         self.start_workers()
 
     @staticmethod
@@ -380,6 +381,8 @@ class WorkerAgent(WorkingAgent):
         return hex(uuid.uuid4().time)[2:-1]
 
     def check_queue_submit(self):
+        if not self.is_accepting_jobs:
+            return
         i = 0
         while self.queue.qsize() < self.workers and i < self.workers*4:
             i += 1
@@ -410,6 +413,9 @@ class WorkerAgent(WorkingAgent):
 
     def get_running_jobs(self):
         return self.processing
+
+    def set_accepting_jobs(self, state):
+        self.is_accepting_jobs = state
 
     def start_workers(self):
         for n in range(self.workers):

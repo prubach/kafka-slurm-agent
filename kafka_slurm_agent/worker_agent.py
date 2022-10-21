@@ -26,7 +26,6 @@ ca_class = locate(config['WORKER_AGENT_CLASS'])
 ca = ca_class()
 heartbeat_sender = HeartbeatSender()
 current_jobs = {}
-is_accepting_jobs = True
 
 
 def run_cluster_agent_check():
@@ -35,18 +34,19 @@ def run_cluster_agent_check():
             js = ast.literal_eval(str(job_status[key]))
             if 'node' in js and js['node'] == socket.gethostname() and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
                 status, reason = ca.check_job_status(js['job_id'])
-                current_jobs[key] = (status, js['job_id'], js['timestamp'])
+                current_jobs[key] = {'job_id': js['job_id'], 'status': status, 'timestamp': js['timestamp']}
                 if not status:
                     ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from worker queue')
                     if key in current_jobs.keys():
                         current_jobs.pop(key)
                 elif js['status'] != status:
                     ca.stat_send.send(key, status, js['job_id'], node=reason)
-                    current_jobs[key] = (status, js['job_id'], js['timestamp'])
+                    current_jobs[key] = {'job_id': js['job_id'], 'status': status, 'timestamp': js['timestamp']}
                 else:
-                    current_jobs[key] = (status, js['job_id'], js['timestamp'])
-    if is_accepting_jobs:
-        ca.check_queue_submit()
+                    current_jobs[key] = {'job_id': js['job_id'], 'status': status, 'timestamp': js['timestamp']}
+            elif key in current_jobs.keys() and js['status'] in ['DONE', 'ERROR']:
+                current_jobs.pop(key)
+    ca.check_queue_submit()
 
 
 @app.agent(jobs_topic)
@@ -69,7 +69,7 @@ async def send_heartbeat(app):
 @app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'stats/')
 async def get_jobs(web, request):
     return web.json({
-        'accept_jobs': is_accepting_jobs,
+        'accept_jobs': ca.is_accepting_jobs,
         'jobs': current_jobs,
     })
 
@@ -77,18 +77,18 @@ async def get_jobs(web, request):
 @app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'pause/')
 async def get_stat(web, request):
     ca.logger.warn('PAUSE requested - stopped accepting jobs')
-    is_accepting_jobs = False
+    ca.set_accepting_jobs(False)
     return web.json({
-         'accept_jobs': is_accepting_jobs
+         'accept_jobs': ca.is_accepting_jobs
     })
 
 
 @app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'resume/')
 async def get_stat(web, request):
     ca.logger.warn('RESUME requested - accepting jobs now')
-    is_accepting_jobs = True
+    ca.set_accepting_jobs(True)
     return web.json({
-         'accept_jobs': is_accepting_jobs
+         'accept_jobs': ca.is_accepting_jobs
     })
 
 
