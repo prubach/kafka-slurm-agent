@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="kafka_slurm_agent",
-    version='0.8.4',
+    version='0.9.0',
     author="Paweł Rubach",
     author_email="pawel.rubach@gmail.com",
     description="The Kafka Slurm Agent is a tool for submitting computing tasks to the Slurm queues on multiple "

@@ -25,6 +25,8 @@ sys.path.append(os.getcwd())
 ca_class = locate(config['WORKER_AGENT_CLASS'])
 ca = ca_class()
 heartbeat_sender = HeartbeatSender()
+current_jobs = {}
+is_accepting_jobs = True
 
 
 def run_cluster_agent_check():
@@ -33,11 +35,18 @@ def run_cluster_agent_check():
             js = ast.literal_eval(str(job_status[key]))
             if 'node' in js and js['node'] == socket.gethostname() and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
                 status, reason = ca.check_job_status(js['job_id'])
+                current_jobs[key] = (status, js['job_id'], js['timestamp'])
                 if not status:
                     ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from worker queue')
+                    if key in current_jobs.keys():
+                        current_jobs.pop(key)
                 elif js['status'] != status:
                     ca.stat_send.send(key, status, js['job_id'], node=reason)
-    ca.check_queue_submit()
+                    current_jobs[key] = (status, js['job_id'], js['timestamp'])
+                else:
+                    current_jobs[key] = (status, js['job_id'], js['timestamp'])
+    if is_accepting_jobs:
+        ca.check_queue_submit()
 
 
 @app.agent(jobs_topic)
@@ -57,14 +66,28 @@ async def send_heartbeat(app):
         heartbeat_sender.send()
 
 
-# @app.page('/stats/')
-# async def get_stat(web, request):
-#     statuses = {}
-#     for key in job_status.keys():
-#         statuses[key] = job_status[key]
-#     return web.json({
-#         'result': statuses,
-#     })
+@app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'stats/')
+async def get_jobs(web, request):
+    return web.json({
+        'accept_jobs': is_accepting_jobs,
+        'jobs': current_jobs,
+    })
+
+
+@app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'pause/')
+async def get_stat(web, request):
+    is_accepting_jobs = False
+    return web.json({
+         'accept_jobs': is_accepting_jobs
+    })
+
+
+@app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'resume/')
+async def get_stat(web, request):
+    is_accepting_jobs = True
+    return web.json({
+         'accept_jobs': is_accepting_jobs
+    })
 
 
 if __name__ == '__main__':
