@@ -268,7 +268,7 @@ class WorkerRunner(Thread):
             try:
                 self.logger.info('Starting job {}: {}'.format(job_id, cmd))
                 #self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
-                self.processing.append(input_job_id)
+                self.processing.append(job_id)
                 os.environ["SLURM_JOB_ID"] = job_id
                 if not time_out:
                     time_out = config['WORKER_JOB_TIMEOUT'] 
@@ -290,8 +290,11 @@ class WorkerRunner(Thread):
                                     error='Timeout {}: {}, {}'.format(input_job_id, job_id, time_out))
                 finished_ok = True                
                 self.logger.error('TIMEOUT [{}: {}, {}]'.format(input_job_id, job_id, time_out))
+                if job_id in self.processing:
+                    self.processing.remove(job_id)
             finally:
-                self.processing.remove(input_job_id)
+                if job_id in self.processing:
+                    self.processing.remove(job_id)
                 if not finished_ok:
                     self.logger.info('Sending ERROR job {}: {}'.format(job_id, cmd))
                     self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error[:2000] if len(error)>2000 else error))

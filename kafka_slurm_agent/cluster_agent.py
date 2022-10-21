@@ -30,11 +30,9 @@ def run_cluster_agent_check():
     run_timeout = None
     if 'CLUSTER_JOB_TIMEOUT' in config and config['CLUSTER_JOB_TIMEOUT']:
         run_timeout = config['CLUSTER_JOB_TIMEOUT']
-    i = 0
     all_stats = ca.check_job_statuses()
     for key in list(job_status.keys()):
         if key in job_status.keys():
-            i+=1
             js = ast.literal_eval(str(job_status[key]))
             if js['cluster'] == config['CLUSTER_NAME'] and js['status'] in ['SUBMITTED', 'WAITING', 'RUNNING', 'UPLOADING']:
                 if key in all_stats:
