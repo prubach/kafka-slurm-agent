@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Resolve local directory of the script
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+################################################
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+function start() {
+    # tested with this , uncomment your command
+    source ${DIR}/venv/bin/activate
+    cd ${DIR}
+    faust -A af_monitor_agent -l info worker > ${DIR}/logs/monitor_agent_out.txt 2>&1 &
+    # write the pid to text to file to use it later
+    app_pid=$!
+    echo "Process started PID $app_pid"
+    # wait for process to check proper state, you can change this time accordingly
+    sleep 3
+    if ps -p $app_pid > /dev/null
+    then
+        echo "Process successfully running PID $app_pid"
+        # write if success
+        echo $app_pid > ${DIR}/monitor_process_id.txt
+    else
+        echo "Process stopped before steady state reached"
+    fi
+}
+
+function stop() {
+    # Get the PID from text file
+    application_pid=$(cat ${DIR}/monitor_process_id.txt)
+    echo "stopping process, Details:"
+    # print details
+    ps -p $application_pid
+    # check if running
+    if ps -p $application_pid > /dev/null
+    then
+        # if running then kill else print message
+        echo "Going to stop process PID $application_pid"
+        kill $application_pid
+        if [ $? -eq 0 ]; then
+        echo "Process stopped successfully"
+        else
+        echo "Failed to stop process PID $application_pid"
+        fi
+    else
+        echo "Failed to stop process, Process is not running"
+    fi
+}
+
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop; start ;;
+    *) echo "usage: $0 start|stop|restart" >&2
+       exit 1
+       ;;
+esac
+

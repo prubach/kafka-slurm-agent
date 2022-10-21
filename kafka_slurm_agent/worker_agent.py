@@ -76,6 +76,7 @@ async def get_jobs(web, request):
 
 @app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'pause/')
 async def get_stat(web, request):
+    ca.logger.warn('PAUSE requested - stopped accepting jobs')
     is_accepting_jobs = False
     return web.json({
          'accept_jobs': is_accepting_jobs
@@ -84,6 +85,7 @@ async def get_stat(web, request):
 
 @app.page(config['WORKER_AGENT_CONTEXT_PATH'] + 'resume/')
 async def get_stat(web, request):
+    ca.logger.warn('RESUME requested - accepting jobs now')
     is_accepting_jobs = True
     return web.json({
          'accept_jobs': is_accepting_jobs

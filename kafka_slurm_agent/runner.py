@@ -39,6 +39,8 @@ SCRIPTS = {
     'start_worker_agent': '#!/bin/bash\nfaust -A kafka_slurm_agent.worker_agent -l info worker -p 6068\n'
 }
 
+START_SCRIPTS = ['monitor_agent', 'cluster_agent', 'worker_agent']
+
 
 class StartAction(argparse.Action):
     def __init__(self, option_strings, dest, nargs=None, **kwargs):
@@ -96,6 +98,9 @@ def generate_project(folder):
     with open(os.path.join(folder, CONFIG_FILE.replace('py__', 'py')), 'a') as file_out:
         file_out.write("PREFIX = '" + os.path.abspath(folder) + "'\n")
         file_out.write("LOGS_DIR = PREFIX + '/logs'\n")
+    for agnt in START_SCRIPTS:
+        shutil.copy(os.path.join(rootpath, agnt), os.path.join(folder, agnt))
+        os.chmod(os.path.join(folder, agnt), 0o755)
     for script, content in SCRIPTS.items():
         with open(os.path.join(folder, script), 'w') as file_out:
             file_out.write(content)

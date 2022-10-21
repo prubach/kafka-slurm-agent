@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="kafka_slurm_agent",
-    version='0.9.0',
+    version='0.9.1',
     author="Paweł Rubach",
     author_email="pawel.rubach@gmail.com",
     description="The Kafka Slurm Agent is a tool for submitting computing tasks to the Slurm queues on multiple "
@@ -19,7 +19,10 @@ setup(
     packages=find_packages(),
     #package_data={
     data_files={
-        "kafkaslurm_cfg.py__"
+        "kafkaslurm_cfg.py__",
+        "monitor_agent",
+        "worker_agent",
+        "cluster_agent"
     },
     entry_points={
         'console_scripts': ['kafka-slurm=kafka_slurm_agent.runner:run'],
