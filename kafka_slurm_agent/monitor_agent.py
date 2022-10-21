@@ -3,6 +3,7 @@ import faust
 
 from kafka_slurm_agent.kafka_modules import setupLogger, config
 from kafka_slurm_agent.command import Command
+#from concurrent.futures import ThreadPoolExecutor
 
 app = faust.App(config['MONITOR_AGENT_NEW_GROUP'] if 'MONITOR_AGENT_NEW_GROUP' in config else socket.gethostname() + '_monitor_agent_new',
                 group_id=1,
@@ -21,13 +22,12 @@ error_topic = app.topic(config['TOPIC_ERROR'], partitions=1)
 new_topic = app.topic(config['TOPIC_NEW'])
 heartbeat_topic = app.topic(config['TOPIC_HEARTBEAT'])
 job_status = app.Table('job_status', default='')
-
+#stats_thread_pool = ThreadPoolExecutor(max_workers=1)
 
 @app.agent(jobs_topic)
 async def process_jobs(stream):
     async for event in stream.events():
         job_status[event.key.decode('UTF-8')] = event.value
-
 
 
 @app.page(config['MONITOR_AGENT_CONTEXT_PATH'] + 'done/')

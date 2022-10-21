@@ -253,22 +253,27 @@ class ClusterAgentException(Exception):
 
 
 class WorkerRunner(Thread):
-    def __init__(self, queue, logger, stat_send, processing):
+    def __init__(self, queue, logger, stat_send, processing, submitted):
         Thread.__init__(self)
         self.queue = queue
         self.logger = logger
         self.stat_send = stat_send
         self.processing = processing
+        self.submitted = submitted
 
     def run(self):
         while True:
             job_id, input_job_id, cmd, time_out = self.queue.get()
             finished_ok = False
             rcode = -1000
+            out = ''
+            error = ''
             try:
                 self.logger.info('Starting job {}: {}'.format(job_id, cmd))
                 #self.stat_send.send(input_job_id, 'RUNNING', job_id, node=socket.gethostname())
                 self.processing.append(job_id)
+                if job_id in self.submitted:
+                    self.submitted.remove(job_id)
                 os.environ["SLURM_JOB_ID"] = job_id
                 if not time_out:
                     time_out = config['WORKER_JOB_TIMEOUT'] 
@@ -364,6 +369,7 @@ class WorkerAgent(WorkingAgent):
         self.workers = config['WORKER_AGENT_MAX_WORKERS']
         self.queue = Queue()
         self.processing = []
+        self.submitted = []
         self.start_workers()
 
     @staticmethod
@@ -386,18 +392,25 @@ class WorkerAgent(WorkingAgent):
                     job_id = self.unique_id()
                     cmd, time_out = self.get_runner_batch_cmd(msg['input_job_id'], msg['script'], msg, job_id)
                     self.queue.put((job_id, msg['input_job_id'], cmd, time_out))
-                    self.stat_send.send(msg['input_job_id'], 'SUBMITTED', job_id)
+                    self.stat_send.send(msg['input_job_id'], 'SUBMITTED', job_id, node=socket.gethostname())
+                    self.submitted.append(job_id)
+
             self.consumer.commit()
 
-    def check_job_status(self, input_job_id):
-        if input_job_id in self.processing:
-            return 'RUNNING', None, None
+    def check_job_status(self, job_id):
+        if job_id in self.processing:
+            return 'RUNNING', socket.gethostname()
+        elif job_id in self.submitted:
+            return 'SUBMITTED', socket.gethostname()
         else:
-            return None, None, None
+            return None, socket.gethostname()
+
+    def get_running_jobs(self):
+        return self.processing
 
     def start_workers(self):
         for n in range(self.workers):
-            worker = WorkerRunner(self.queue, self.logger, self.stat_send, self.processing)
+            worker = WorkerRunner(self.queue, self.logger, self.stat_send, self.processing, self.submitted)
             worker.daemon = True
             worker.start()
         self.queue.join()
