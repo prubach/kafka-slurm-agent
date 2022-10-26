@@ -36,7 +36,7 @@ def run_cluster_agent_check():
                 status, reason = ca.check_job_status(js['job_id'])
                 current_jobs[key] = {'job_id': js['job_id'], 'status': status, 'timestamp': js['timestamp']}
                 if not status:
-                    ca.stat_send.send(key, 'ERROR', js['job_id'], error='Missing from worker queue')
+                    ca.stat_send.send(key, 'ERROR', js['job_id'], node=reason, error='Missing from worker queue')
                     if key in current_jobs.keys():
                         current_jobs.pop(key)
                 elif js['status'] != status:
