@@ -103,7 +103,7 @@ class ClusterComputing:
         else:
             self.slurm_job_id = os.getenv('SLURM_JOB_ID', -1)
         self.ss = StatusSender()
-        self.rs = ResultsSender()
+        self.rs = ResultsSender(producer=self.ss.producer)
         self.logger = setupLogger(config['LOGS_DIR'], "clustercomputing")
         self.results = {'job_id': self.slurm_job_id, 'node': socket.gethostname(), 'cluster': config['CLUSTER_NAME']}
 
@@ -152,16 +152,18 @@ class ClusterComputing:
 
     def __del__(self):
         self.ss.producer.flush()
-        self.rs.producer.flush()
 
 
 class KafkaSender:
-    def __init__(self):
-        try:
-            self.producer = self.init_producer()
-        except NoBrokersAvailable as e:
-            time.sleep(2)
-            self.producer = self.init_producer()
+    def __init__(self, producer=None):
+        if not producer:
+            try:
+                self.producer = self.init_producer()
+            except NoBrokersAvailable as e:
+                time.sleep(2)
+                self.producer = self.init_producer()
+        else:
+            self.producer = producer
 
     def init_producer(self):
         return KafkaProducer(bootstrap_servers=config['BOOTSTRAP_SERVERS'],
