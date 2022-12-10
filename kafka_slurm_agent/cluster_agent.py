@@ -61,7 +61,7 @@ def run_cluster_agent_check():
         job_id, status, reason, run_time = all_stats[k]
         ca.stat_send.send(k, status, job_id, node=reason)
         ca.logger.warning('No status {}: {}'.format(k, all_stats[k]))
-    ca.logger.info('Checked {} jobs'.format(i))
+    #ca.logger.info('Checked {} jobs'.format(i))
     if not config['MONITOR_ONLY_DO_NOT_SUBMIT']:
         ca.check_queue_submit()
 
