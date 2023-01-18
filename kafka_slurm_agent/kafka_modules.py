@@ -16,6 +16,8 @@ from threading import Thread
 from urllib.error import URLError
 
 from kafka import KafkaConsumer, KafkaProducer
+from kafka.coordinator.assignors.range import RangePartitionAssignor
+from kafka.coordinator.assignors.roundrobin import RoundRobinPartitionAssignor
 from kafka.errors import NoBrokersAvailable
 from simple_slurm import Slurm
 import getpass
@@ -46,7 +48,8 @@ config_defaults = {
     'HEARTBEAT_INTERVAL': 0.0,
     'KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS': 2000,
     'MONITOR_HEARTBEAT_INTERVAL_MS': 3000,
-    'MONITOR_ONLY_DO_NOT_SUBMIT': False
+    'MONITOR_ONLY_DO_NOT_SUBMIT': False,
+    'KAFKA_PARTITION_ASSIGNMENT_STRATEGY': [RoundRobinPartitionAssignor, RangePartitionAssignor]
 }
 
 
@@ -324,6 +327,8 @@ class WorkingAgent:
                                  enable_auto_commit=False,
                                  heartbeat_interval_ms=config['KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS'],
                                  group_id=config['CLUSTER_AGENT_NEW_GROUP'],
+                                 partition_assignment_strategy=config['KAFKA_PARTITION_ASSIGNMENT_STRATEGY'],
+                                      #[RoundRobinPartitionAssignor, RangePartitionAssignor],
                                  value_deserializer=lambda x: json.loads(x.decode('utf-8')))
         self.stat_send = StatusSender()
         self.script_name = None

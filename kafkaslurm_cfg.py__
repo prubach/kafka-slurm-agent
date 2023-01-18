@@ -1,6 +1,9 @@
 from os.path import expanduser, join
 import faust
 import socket
+#from kafka.coordinator.assignors.range import RangePartitionAssignor
+#from kafka.coordinator.assignors.roundrobin import RoundRobinPartitionAssignor
+
 
 #PREFIX = join(expanduser("~"), 'my_kafka_slurm')
 #SHARED_TMP = PREFIX + '/tmp'
@@ -14,6 +17,8 @@ KAFKA_SECURITY_PROTOCOL = 'PLAINTEXT'
 # KAFKA_USERNAME = 'user'
 # KAFKA_PASSWORD = 'pass'
 # KAFKA_FAUST_BROKER_CREDENTIALS = faust.SASLCredentials(username=KAFKA_USERNAME, password=KAFKA_PASSWORD)
+
+#KAFKA_PARTITION_ASSIGNMENT_STRATEGY = [RoundRobinPartitionAssignor, RangePartitionAssignor]
 TOPIC_NEW = 'kp-new'
 TOPIC_STATUS = 'kp-jobs'
 TOPIC_DONE = 'kp-done'
