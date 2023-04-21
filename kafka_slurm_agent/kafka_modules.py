@@ -544,7 +544,8 @@ class ClusterAgent(WorkingAgent):
         if 'MEM' in slurm_params:
             slurm_pars['mem'] = slurm_params['MEM']
         if self.is_job_gpu(slurm_params):
-            slurm_pars['gres'] = 'gpu'
+            res_req = slurm_params['RESOURCES_REQUIRED'] if slurm_params and 'RESOURCES_REQUIRED' in slurm_params else config['SLURM_RESOURCES_REQUIRED']
+            slurm_pars['gres'] = 'gpu:{}'.format(res_req) if res_req > 1 else 'gpu'
         if 'SLURM_EXCLUDE' in config and config['SLURM_EXCLUDE'] != '':
             slurm_pars['exclude'] = config['SLURM_EXCLUDE']
         slurm = Slurm(**slurm_pars)
