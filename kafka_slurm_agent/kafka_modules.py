@@ -354,7 +354,10 @@ class WorkingAgent:
 
     def get_runner_batch_cmd(self, input_job_id, script, msg=None, job_id=None):
         # TODO - override the method according to your needs
-        cmd = os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
+        if 'PYTHON_VENV' in config:
+            cmd = os.path.join(config['PYTHON_VENV'], 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
+        else:
+            cmd = os.path.join(config['PREFIX'], 'venv', 'bin', 'python') + ' ' + script + ' ' + str(input_job_id)
         time_out = None
         if msg:
             if 'TIMEOUT' in msg['slurm_pars']:
