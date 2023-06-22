@@ -215,7 +215,7 @@ class ErrorSender(KafkaSender):
 
 
 class JobSubmitter(KafkaSender):
-    def send(self, s_id, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, flush=True, ignore_error_status=False):
+    def send(self, s_id, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'cpu'}, check=True, flush=True, ignore_error_status=False, topic=config['TOPIC_NEW']):
         status = None
         if check:
             status = self.check_status(s_id)
@@ -224,7 +224,7 @@ class JobSubmitter(KafkaSender):
                     print('{} already processed: {}'.format(s_id, status))
                 if not ignore_error_status or (ignore_error_status and status != 'ERROR'):
                     return s_id, False, status
-        self.producer.send(config['TOPIC_NEW'], key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'script': script,
+        self.producer.send(topic, key=s_id.encode('utf-8'), value={'input_job_id': s_id, 'script': script,
                                                                                  'slurm_pars': slurm_pars,
                                                                                  'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
         if flush:
@@ -245,10 +245,10 @@ class JobSubmitter(KafkaSender):
         except URLError as e:
             raise ClusterAgentException('Cannot reach Monitor Agent at: ' + url)
 
-    def send_many(self, ids, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'gpu'}, check=True, ignore_error_status=False):
+    def send_many(self, ids, script='my_job.py', slurm_pars={'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'cpu'}, check=True, ignore_error_status=False, topic=config['TOPIC_NEW']):
         results = []
         for s_id in ids:
-            results.append(self.send(s_id, script=script, slurm_pars=slurm_pars, check=check, flush=False, ignore_error_status=ignore_error_status))
+            results.append(self.send(s_id, script=script, slurm_pars=slurm_pars, check=check, flush=False, ignore_error_status=ignore_error_status, topic=topic))
         self.producer.flush()
         return results
 
