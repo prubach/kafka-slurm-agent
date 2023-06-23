@@ -32,6 +32,7 @@ CONFIG_FILE = 'kafkaslurm_cfg.py'
 
 config_defaults = {
     'CLUSTER_NAME': 'my_cluster',
+    'CLUSTER_JOB_NAME_SUFFIX': '_KSA',
     'POLL_INTERVAL': 30.0,
     'BOOTSTRAP_SERVERS': 'localhost:9092',
     'MONITOR_AGENT_URL': 'http://localhost:6066/',
@@ -49,7 +50,7 @@ config_defaults = {
     'KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS': 2000,
     'MONITOR_HEARTBEAT_INTERVAL_MS': 3000,
     'MONITOR_ONLY_DO_NOT_SUBMIT': False,
-    'KAFKA_PARTITION_ASSIGNMENT_STRATEGY': [RoundRobinPartitionAssignor, RangePartitionAssignor]
+    'KAFKA_PARTITION_ASSIGNMENT_STRATEGY': [RoundRobinPartitionAssignor, RangePartitionAssignor],
 }
 
 
@@ -438,6 +439,7 @@ class WorkerAgent(WorkingAgent):
 class ClusterAgent(WorkingAgent):
     def __init__(self):
         super(ClusterAgent, self).__init__()
+        self.job_name_suffix = config['CLUSTER_JOB_NAME_SUFFIX']
         self.logger = setupLogger(config['LOGS_DIR'], "clusteragent")
         self.logger.info('Cluster Agent Started')
 

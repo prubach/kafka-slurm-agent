@@ -4,7 +4,7 @@ import os
 import faust
 import sys
 from pydoc import locate
-from kafka_slurm_agent.kafka_modules import config, HeartbeatSender
+from kafka_slurm_agent.kafka_modules import config, HeartbeatSender, ClusterAgent
 from concurrent.futures import ThreadPoolExecutor
 
 app = faust.App(config['CLUSTER_NAME'] + '_cluster_agent',
@@ -21,7 +21,7 @@ job_status = app.Table('job_status', default='')
 
 thread_pool = ThreadPoolExecutor(max_workers=1)
 sys.path.append(os.getcwd())
-ca_class = locate(config['CLUSTER_AGENT_CLASS'])
+ca_class = locate(config['CLUSTER_AGENT_CLASS']) if 'CLUSTER_AGENT_CLASS' in config else ClusterAgent
 ca = ca_class()
 heartbeat_sender = HeartbeatSender()
 

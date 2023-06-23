@@ -19,14 +19,14 @@ SCRIPTS = {
                         "async def process_done(stream):\n"
                         "\tasync for msg in stream.events():\n"
                         "\t\tprint('Got {}: {}'.format(msg.key, msg.value))\n",
-    'my_cluster_agent.py': "from kafka_slurm_agent.kafka_modules import ClusterAgent\n\n"
-                           "class MyClusterAgent(ClusterAgent):\n"
-                           "\tdef __init__(self):\n"
-                           "\t\tsuper().__init__()\n"
-                           "\t\tself.script_name = 'run.py'\n"
-                           "\t\tself.job_name_suffix = '_MYJOBS'\n\n"
-                           "\tdef get_job_name(self, input_job_id):\n"
-                           "\t\treturn str(input_job_id) + self.job_name_suffix\n",
+    # 'my_cluster_agent.py': "from kafka_slurm_agent.kafka_modules import ClusterAgent\n\n"
+    #                        "class MyClusterAgent(ClusterAgent):\n"
+    #                        "\tdef __init__(self):\n"
+    #                        "\t\tsuper().__init__()\n"
+    #                        "\t\tself.script_name = 'run.py'\n"
+    #                        "\t\tself.job_name_suffix = '_MYJOBS'\n\n"
+    #                        "\tdef get_job_name(self, input_job_id):\n"
+    #                        "\t\treturn str(input_job_id) + self.job_name_suffix\n",
     'my_worker_agent.py': "from kafka_slurm_agent.kafka_modules import WorkerAgent\n\n"
                            "class MyWorkerAgent(WorkerAgent):\n"
                            "\tdef __init__(self):\n"
