@@ -51,6 +51,7 @@ config_defaults = {
     'MONITOR_HEARTBEAT_INTERVAL_MS': 3000,
     'MONITOR_ONLY_DO_NOT_SUBMIT': False,
     'KAFKA_PARTITION_ASSIGNMENT_STRATEGY': [RoundRobinPartitionAssignor, RangePartitionAssignor],
+    'DELAY_BETWEEN_SUBMIT_MS': 0
 }
 
 
@@ -460,6 +461,8 @@ class ClusterAgent(WorkingAgent):
                 self.logger.debug(job)
                 for el in job[1]:
                     self.logger.debug(el.value['input_job_id'])
+                    if config['DELAY_BETWEEN_SUBMIT_MS'] > 0:
+                        time.sleep(0.001*config['DELAY_BETWEEN_SUBMIT_MS'])
                     #msg = ast.literal_eval(job.value().decode('utf-8'))
                     job_id = self.submit_slurm_job(el.value['input_job_id'], el.value['script'], el.value['slurm_pars'], el.value)
                     self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', job_id)
