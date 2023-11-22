@@ -125,17 +125,9 @@ class ClusterComputing:
             print('timeout from job config: {}'.format(self.timeout))
         self.ss.send(self.input_job_id, 'RUNNING', job_id=self.slurm_job_id, node=socket.gethostname())
         if 'ExecutorType' in self.job_config and self.job_config['ExecutorType']=='WRK_AGNT':
-            #if self.timeout:
-            #    try:
-            #        self.do_compute_timeout()
-            #    except TimeoutError as te:
-            #        self.ss.send(self.input_job_id, 'TIMEOUT', job_id=self.slurm_job_id, node=socket.gethostname(),
-            #                     error='Timeout after {}'.format(self.timeout))
-            #        self.logger.error('Timeout job {} after {}'.format(self.input_job_id, self.slurm_job_id,
-            #                                                                       self.timeout))
-            #else:
             self.do_compute()
             self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
+            self.ss.producer.flush()
         else:
             try:
                 if self.timeout:
