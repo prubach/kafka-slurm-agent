@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="kafka_slurm_agent",
-    version='1.1.2',
+    version='1.1.3',
     author="Paweł Rubach",
     author_email="pawel.rubach@gmail.com",
     description="The Kafka Slurm Agent is a tool for submitting computing tasks to the Slurm queues on multiple "
@@ -39,6 +39,7 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent"
     ],

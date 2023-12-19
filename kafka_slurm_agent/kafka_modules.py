@@ -304,7 +304,7 @@ class WorkerRunner(Thread):
                     self.processing.remove(job_id)
                 if not finished_ok:
                     self.logger.info('Sending ERROR job {}: {}'.format(job_id, cmd))
-                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error[:2000] if len(error)>2000 else error))
+                    self.stat_send.send(input_job_id, 'ERROR', job_id, node=socket.gethostname(), error='{}: {}, {}'.format(rcode, out, error[:2000] if error and len(error)>2000 else error))
                 else:
                     self.logger.info('Finalizing job {}: {}'.format(job_id, cmd))
                 self.queue.task_done()
