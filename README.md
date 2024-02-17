@@ -28,10 +28,10 @@ This will generate the following files:
 
 ### Configuration
 Please adjust the config file.
-   1. Modify the configuration of the connection to **Apache Kafka**. The default one assumes that kafka is running on *localhost* and default port (*9092*) and doesn't use authentication or SSL.
-        In the comments you will find parameters necessary to connect to **Kafka** configured using SASL and plaintext password. If you use this type of connection please uncomment also the line that starts with:
-   `` # KAFKA_FAUST_BROKER_CREDENTIALS``
-   2. Make sure that ``PREFIX` points to the location of your project
+1. Modify the configuration of the connection to **Apache Kafka**. The default one assumes that kafka is running on *localhost* and default port (*9092*) and doesn't use authentication or SSL.
+     In the comments you will find parameters necessary to connect to **Kafka** configured using SASL and plaintext password. If you use this type of connection please uncomment also the line that starts with:
+`` # KAFKA_FAUST_BROKER_CREDENTIALS``
+2. Make sure that ``PREFIX` points to the location of your project
 3. Change the names of topics used for your project to avoid any conflict with projects sharing the same kafka instance.
 4. If you want to use a SLURM cluster please change the job ``CLUSTER_JOB_NAME_SUFFIX = '_KSA'`` to avoid conflicts with other projects running on your slurm cluster. The jobs managed by **cluster-agent** will be named *"JOBID_SUFFIX"* where the JOBID is the identifier that you assign when submitting a job and SUFFIX is handled by this configuration parameter.
 
@@ -55,3 +55,7 @@ Once this is ready, you can test your project locally:
 3. Submit new jobs using the ``submitter.py``
 
 You can monitor the execution by opening http://localhost:6067/mon/stats/ on the host on which you've started the **monitor-agent**.
+
+## Demo project
+
+You can download and directly run a demonstration project: https://github.com/ilbsm/ksa_demo 
