@@ -7,12 +7,15 @@ with open("README.md", "r") as fh:
 
 setup(
     name="kafka_slurm_agent",
-    version='1.1.3',
+    version='1.2.2',
     author="Paweł Rubach",
     author_email="pawel.rubach@gmail.com",
-    description="The Kafka Slurm Agent is a tool for submitting computing tasks to the Slurm queues on multiple "
-                "clusters. It uses Kafka to asynchronously communicate with an agent installed on the cluster."
-                "It contains a monitoring tool and a job submitter.",
+    description="The Kafka Slurm Agent is a distributed computing and stream processing engine "
+                "that can be used to run python code across"
+                "multiple SLURM managed HPC clusters or individual workstations."
+                "It uses Kafka to asynchronously communicate with agents installed on clusters and workstations."
+                "It contains a monitoring tool with a Web JSON API and a job submitter."
+                "It is a pure Python implementation using faust stream processing",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/prubach/kafka-slurm-agent",

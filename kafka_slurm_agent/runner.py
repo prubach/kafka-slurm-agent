@@ -17,8 +17,8 @@ SCRIPTS = {
                         "#TODO Put your monitor agent code here\n\n\n"
                         "@app.agent(done_topic)\n"
                         "async def process_done(stream):\n"
-                        "\tasync for msg in stream.events():\n"
-                        "\t\tprint('Got {}: {}'.format(msg.key, msg.value))\n",
+                        "    async for msg in stream.events():\n"
+                        "        print('Got {}: {}'.format(msg.key, msg.value))\n",
     # 'my_cluster_agent.py': "from kafka_slurm_agent.kafka_modules import ClusterAgent\n\n"
     #                        "class MyClusterAgent(ClusterAgent):\n"
     #                        "\tdef __init__(self):\n"
@@ -29,14 +29,36 @@ SCRIPTS = {
     #                        "\t\treturn str(input_job_id) + self.job_name_suffix\n",
     'my_worker_agent.py': "from kafka_slurm_agent.kafka_modules import WorkerAgent\n\n"
                            "class MyWorkerAgent(WorkerAgent):\n"
-                           "\tdef __init__(self):\n"
-                           "\t\tsuper().__init__()\n"
-                           "\t\tself.script_name = 'run.py'\n"
-                           "\t\tself.job_name_suffix = '_MYJOBS'\n\n"
-                           "\tdef get_job_name(self, input_job_id):\n"
-                           "\t\treturn str(input_job_id) + self.job_name_suffix\n",
+                           "    def __init__(self):\n"
+                           "        super().__init__()\n"
+                           "        self.script_name = 'run.py'\n"
+                           "        self.job_name_suffix = '_MYJOBS'\n\n"
+                           "    def get_job_name(self, input_job_id):\n"
+                           "        return str(input_job_id) + self.job_name_suffix\n",
     'start_monitor_agent': '#!/bin/bash\nfaust -A my_monitor_agent -l info worker -p 6067\n',
-    'start_worker_agent': '#!/bin/bash\nfaust -A kafka_slurm_agent.worker_agent -l info worker -p 6068\n'
+    'start_worker_agent': '#!/bin/bash\nfaust -A kafka_slurm_agent.worker_agent -l info worker -p 6068\n',
+    'submitter.py': "from kafka_slurm_agent.kafka_modules import JobSubmitter\n\n"
+                    "js = JobSubmitter()\n"
+                    "job_ids = ['job_id_1', 'job_id_2']\n"
+                    "# check (default: True) - don't submit if was already computed\n"
+                    "# ignore_error_status (default: False) - don't submit if previously generated an error\n"
+                    "results = js.send_many(job_ids, 'run.py', {'RESOURCES_REQUIRED': 1, 'JOB_TYPE': 'cpu'}, ignore_error_status=True, check=False)\n"
+                    "print(results)\n",
+    'run.py':   "import sys\n"
+                "from kafka_slurm_agent.kafka_modules import ClusterComputing\n\n\n"
+                "class MyComputing(ClusterComputing):\n"
+                "    def __init__(self, args):\n"
+                "        super().__init__(args)\n"
+                "        self.struct_name = self.input_job_id\n\n\n"
+                "    def do_compute(self):\n"
+                "        print(f'Got job id: {self.input_job_id}')\n"
+                "        print(f'Full job config parameters: {self.job_config}')\n"
+                "        # DO SOMETHING\n"
+                "        self.results['my_results'] = 'my result'\n"
+                "        self.rs.send(self.input_job_id, self.results)\n"
+                "        print('Sent results: {}'.format(self.results))\n\n\n"
+                "if __name__ == '__main__':\n"
+                "    MyComputing(sys.argv).compute()\n"
 }
 
 START_SCRIPTS = ['monitor_agent', 'cluster_agent', 'worker_agent']
@@ -98,6 +120,7 @@ def generate_project(folder):
     with open(os.path.join(folder, CONFIG_FILE.replace('py__', 'py')), 'a') as file_out:
         file_out.write("PREFIX = '" + os.path.abspath(folder) + "'\n")
         file_out.write("LOGS_DIR = PREFIX + '/logs'\n")
+        os.makedirs(os.path.join(folder, 'logs'), exist_ok=True)
     for agnt in START_SCRIPTS:
         shutil.copy(os.path.join(rootpath, agnt), os.path.join(folder, agnt))
         os.chmod(os.path.join(folder, agnt), 0o755)
