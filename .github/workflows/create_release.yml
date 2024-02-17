@@ -1,19 +1,19 @@
+name: Create Release
+
 on:
   push:
     # Sequence of patterns matched against refs/tags
     tags:
       - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
-name: Create Release
-
 jobs:
   build:
-    name: Create Release
+    #name: Create Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Create Release
+        uses: actions/checkout@v4
+      - name: Create Release actually
         id: create_release
         uses: actions/create-release@v1
         env:
@@ -23,6 +23,41 @@ jobs:
           release_name: Release ${{ github.ref }}
           body: |
             Changes in this Release
-            - Added heartbeat to worker and cluster to send regularly
+            - First Change
+            - Second Change
           draft: false
           prerelease: false
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install build env
+        run: >-
+          python3 -m
+          pip install
+          wheel scikit_build
+          --user
+      - name: Build a binary wheel and a source tarball
+        run: python3 setup.py bdist_wheel
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kafka-slurm-agent/
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v3
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
