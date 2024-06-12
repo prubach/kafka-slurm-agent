@@ -148,7 +148,8 @@ class ClusterComputing:
             self.ss.producer.flush()
 
     def __del__(self):
-        self.ss.producer.flush()
+        if self.ss is not None and self.ss.producer is not None:
+            self.ss.producer.flush()
 
 
 class KafkaSender:
@@ -247,7 +248,8 @@ class JobSubmitter(KafkaSender):
         return results
 
     def __del__(self):
-        self.producer.flush()
+        if self.producer is not None:
+            self.producer.flush()
 
 
 class ClusterAgentException(Exception):
