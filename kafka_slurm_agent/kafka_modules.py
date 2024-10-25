@@ -48,6 +48,8 @@ config_defaults = {
     'WORKER_JOB_TIMEOUT': 86400,  # = 24h
     'HEARTBEAT_INTERVAL': 0.0,
     'KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS': 2000,
+    #'KAFKA_TRANSACTION_TIMEOUT_MS': 120000, # maximum amount of time a transaction can take before it is aborted by the broker. - unsupported by kafka-python-ng 2.2.2
+    'REQUEST_TIMEOUT_MS': 60000, # maximum amount of time a transaction can take before it is aborted by the broker.
     'MONITOR_HEARTBEAT_INTERVAL_MS': 3000,
     'MONITOR_ONLY_DO_NOT_SUBMIT': False,
     'KAFKA_PARTITION_ASSIGNMENT_STRATEGY': [RoundRobinPartitionAssignor, RangePartitionAssignor],
@@ -154,6 +156,7 @@ class ClusterComputing:
 
 class KafkaSender:
     def __init__(self, producer=None):
+        self.producer = None
         if not producer:
             try:
                 self.producer = self.init_producer()
@@ -170,7 +173,9 @@ class KafkaSender:
                                       sasl_mechanism=config['KAFKA_SASL_MECHANISM'],
                                       sasl_plain_username=config['KAFKA_USERNAME'],
                                       sasl_plain_password=config['KAFKA_PASSWORD'],
-                                      value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+                                      value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                                      request_timeout_ms=config['REQUEST_TIMEOUT_MS'])
+                                      #transaction_timeout_ms=config['KAFKA_TRANSACTION_TIMEOUT_MS'])
 
 
 class StatusSender(KafkaSender):
