@@ -1,5 +1,5 @@
 simple-slurm
-kafka-python
+kafka-python-ng
 psutil>=5.6.6
 python-math
 faust-streaming
