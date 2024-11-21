@@ -53,7 +53,9 @@ config_defaults = {
     'MONITOR_HEARTBEAT_INTERVAL_MS': 3000,
     'MONITOR_ONLY_DO_NOT_SUBMIT': False,
     'KAFKA_PARTITION_ASSIGNMENT_STRATEGY': [RoundRobinPartitionAssignor, RangePartitionAssignor],
-    'DELAY_BETWEEN_SUBMIT_MS': 0
+    'DELAY_BETWEEN_SUBMIT_MS': 0,
+    'SLURM_JOB_TYPE': 'cpu',
+    'SLURM_RESOURCES_REQUIRED': 1
 }
 
 
