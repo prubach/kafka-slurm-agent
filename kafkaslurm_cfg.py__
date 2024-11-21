@@ -1,7 +1,7 @@
 from os.path import expanduser, join
 import faust
 import socket
-
+import os
 
 PREFIX = os.path.dirname(__file__) # location of the project directory
 LOGS_DIR = PREFIX + '/logs' # Must exist
