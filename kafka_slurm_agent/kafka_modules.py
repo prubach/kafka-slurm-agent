@@ -113,7 +113,7 @@ class ClusterComputing:
             self.slurm_job_id = os.getenv('SLURM_JOB_ID', -1)
         self.ss = StatusSender()
         self.rs = ResultsSender(producer=self.ss.producer)
-        self.logger = setupLogger(config['LOGS_DIR'], "clustercomputing")
+        self.logger = setupLogger(config['LOGS_DIR'], "clustercomputing_{}".format(socket.gethostname()))
         self.results = {'job_id': self.slurm_job_id, 'node': socket.gethostname(), 'cluster': config['CLUSTER_NAME']}
 
     def do_compute(self):
@@ -380,7 +380,7 @@ class WorkingAgent:
 class WorkerAgent(WorkingAgent):
     def __init__(self):
         super(WorkerAgent, self).__init__()
-        self.logger = setupLogger(config['LOGS_DIR'], "workeragent")
+        self.logger = setupLogger(config['LOGS_DIR'], "workeragent_{}".format(socket.gethostname()))
         self.logger.info('Worker Agent Started')
         self.workers = config['WORKER_AGENT_MAX_WORKERS']
         self.queue = Queue()
@@ -442,7 +442,7 @@ class ClusterAgent(WorkingAgent):
     def __init__(self):
         super(ClusterAgent, self).__init__()
         self.job_name_suffix = config['CLUSTER_JOB_NAME_SUFFIX']
-        self.logger = setupLogger(config['LOGS_DIR'], "clusteragent")
+        self.logger = setupLogger(config['LOGS_DIR'], "clusteragent_{}".format(socket.gethostname()))
         self.logger.info('Cluster Agent Started')
 
     def check_queue_submit(self):
