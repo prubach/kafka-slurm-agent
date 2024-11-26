@@ -13,8 +13,9 @@ app = faust.App(config['WORKER_NAME'] + '_worker_agent',
                 broker='kafka://' + config['BOOTSTRAP_SERVERS'],
                 broker_credentials=config['KAFKA_FAUST_BROKER_CREDENTIALS'],
                 processing_guarantee='exactly_once',
-                broker_max_poll_records=20,
-                transaction_timeout_ms=120000,
+                consumer_max_fetch_size=config['KAFKA_CONSUMER_MAX_FETCH_SIZE'],
+                broker_max_poll_records=config['KAFKA_BROKER_MAX_POLL_RECORDS'],
+                transaction_timeout_ms=config['KAFKA_TRANSACTION_TIMEOUT_MS'],
                 topic_partitions=1)
 #store='rocksdb://',
 jobs_topic = app.topic(config['TOPIC_STATUS'], partitions=1)
