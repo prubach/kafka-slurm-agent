@@ -36,7 +36,12 @@ HEARTBEAT_INTERVAL = 300.0 # in seconds, set to 0 to disable heartbeat - works f
 # Kafka advanced options
 #from kafka.coordinator.assignors.range import RangePartitionAssignor
 #from kafka.coordinator.assignors.roundrobin import RoundRobinPartitionAssignor
-#KAFKA_PARTITION_ASSIGNMENT_STRATEGY = [RoundRobinPartitionAssignor, RangePartitionAssignor]  # (Optional) override the way the kafka partitions are assigned
+# KAFKA_PARTITION_ASSIGNMENT_STRATEGY = [RoundRobinPartitionAssignor, RangePartitionAssignor]  # (Optional) override the way the kafka partitions are assigned
+# KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS = 2000,
+# KAFKA_BROKER_MAX_POLL_RECORDS = 20
+# KAFKA_CONSUMER_MAX_FETCH_SIZE = 1024 ** 2,
+# KAFKA_TRANSACTION_TIMEOUT_MS = 120000 # maximum amount of time a transaction can take before it is aborted by the broker. - unsupported by kafka-python-ng 2.2.2
+# REQUEST_TIMEOUT_MS = 60000, # maximum amount of time a transaction can take before it is aborted by the broker.
 
 
 # Cluster Agent (SLURM)
