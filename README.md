@@ -9,8 +9,11 @@ It is a pure Python implementation using faust stream processing
 ## Installation.
 
 Use the standard ``pip`` tool to install. The recommended way is to use a Python virtual environment:
+
 ``python3 -m venv venv``
+
 ``source venv/bin/activate``
+
 ``pip install kafka-slurm-agent``
 
 ## Quick User Guide
@@ -18,20 +21,22 @@ Use the standard ``pip`` tool to install. The recommended way is to use a Python
 ### Create a new project
 
 In the folder in which you created the ``venv`` subfolder run the following command:
+
 ``kafka-slurm create-project --folder .``
+
 This will generate the following files:
    1. ``kafkaslurm_cfg.py`` - the configuration file
    2. Startup scripts for **worker-agent**, **cluster-agent** and **monitor-agent**
    3. An example file to run your code (``run.py``)
    4. The job submitter example (``submitter.py``)
-   5. The class that can be optionally used to override the existing implementation of the **worker-agent** (``my_worker_agent.py`)
+   5. The class that can be optionally used to override the existing implementation of the **worker-agent** (``my_worker_agent.py``)
 
 ### Configuration
 Please adjust the config file.
 1. Modify the configuration of the connection to **Apache Kafka**. The default one assumes that kafka is running on *localhost* and default port (*9092*) and doesn't use authentication or SSL.
      In the comments you will find parameters necessary to connect to **Kafka** configured using SASL and plaintext password. If you use this type of connection please uncomment also the line that starts with:
-`` # KAFKA_FAUST_BROKER_CREDENTIALS``
-2. Make sure that ``PREFIX` points to the location of your project
+``# KAFKA_FAUST_BROKER_CREDENTIALS``
+2. Make sure that ``PREFIX`` points to the location of your project
 3. Change the names of topics used for your project to avoid any conflict with projects sharing the same kafka instance.
 4. If you want to use a SLURM cluster please change the job ``CLUSTER_JOB_NAME_SUFFIX = '_KSA'`` to avoid conflicts with other projects running on your slurm cluster. The jobs managed by **cluster-agent** will be named *"JOBID_SUFFIX"* where the JOBID is the identifier that you assign when submitting a job and SUFFIX is handled by this configuration parameter.
 
@@ -40,7 +45,8 @@ For a full list of configuration parameters refer to the documentation.
 ### Creating topics on Kafka with appropriate partitions
 
 Use the built-in command ``kafka-slurm`` to create topics. You should set the ``--new-topic-partitions`` paramter to at least the number of planned clusters and workstations that will be used simultaneously.
-For example: 
+For example:
+
 ``kafka-slurm --new-topic-partitions 4 topics-create``
 
 ### Implement your code
