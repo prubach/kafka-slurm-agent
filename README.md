@@ -70,6 +70,6 @@ You can download and directly run a demonstration project: https://github.com/il
 
 If you use Kafka Slurm Agent in your research, please cite:
 
-[Applying Large-Scale Distributed Computing to Structural Bioinformatics -- Bridging Legacy HPC Clusters With Big Data Technologies Using kafka-slurm-agent][https://arxiv.org/abs/2503.14806]
+[Applying Large-Scale Distributed Computing to Structural Bioinformatics -- Bridging Legacy HPC Clusters With Big Data Technologies Using kafka-slurm-agent](https://arxiv.org/abs/2503.14806)
 
 You can also read more about the motivation and applications of this tool.  
