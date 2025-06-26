@@ -105,10 +105,19 @@ def setupLogger(directory, name, file_name=None):
 class ClusterComputing:
     def __init__(self, input_args):
         self.input_job_id = input_args[1]
+        self.job_config = {'input_job_id': self.input_job_id,
+                           'script': __file__,
+                           'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                           'slurm_pars': {"RESOURCES_REQUIRED": 1, "JOB_TYPE": "cpu"},
+                           'ExecutorType': "DEV_DEBUG"}
         if len(input_args) > 2:
             cfg_file = input_args[2].split('cfg_file=')[1]
-            with open(cfg_file) as json_file:
-                self.job_config = json.load(json_file)
+            if cfg_file:
+                with open(cfg_file) as json_file:
+                    self.job_config = json.load(json_file)
+            else:
+                self.job_config = config_defaults
+
         if len(input_args) > 3:
             self.slurm_job_id = input_args[3].split('job_id=')[1]
         else:

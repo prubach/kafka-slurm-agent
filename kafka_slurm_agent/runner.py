@@ -58,6 +58,7 @@ SCRIPTS = {
                 "        self.rs.send(self.input_job_id, self.results)\n"
                 "        print('Sent results: {}'.format(self.results))\n\n\n"
                 "if __name__ == '__main__':\n"
+                "    # To test it during development run this python script proving the input_job_id as input parameter. i.e.: python run.py 0001\n"
                 "    MyComputing(sys.argv).compute()\n"
 }
 
