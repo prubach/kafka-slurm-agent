@@ -139,7 +139,7 @@ class ClusterComputing:
             self.timeout = int(self.job_config['slurm_pars']['TIMEOUT'])
             print('timeout from job config: {}'.format(self.timeout))
         self.ss.send(self.input_job_id, 'RUNNING', job_id=self.slurm_job_id, node=socket.gethostname())
-        if 'ExecutorType' in self.job_config and self.job_config['ExecutorType']=='WRK_AGNT':
+        if 'ExecutorType' in self.job_config and self.job_config['ExecutorType'] in ['WRK_AGNT', 'DEV_DEBUG']:
             self.do_compute()
             self.ss.send(self.input_job_id, 'DONE', job_id=self.slurm_job_id, node=socket.gethostname())
             self.ss.producer.flush()
