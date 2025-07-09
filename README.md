@@ -2,7 +2,7 @@
 
 The Kafka Slurm Agent is a distributed computing and stream processing engine 
 that can be used to run python code across multiple **SLURM** managed HPC clusters or individual workstations.
-It uses Kafka to asynchronously communicate with agents installed on clusters and workstations.
+It uses Kafka (3.x) to asynchronously communicate with agents installed on clusters and workstations.
 It contains a monitoring tool with a Web JSON API and a job submitter.
 It is a pure Python implementation using faust stream processing
 
@@ -62,9 +62,19 @@ Once this is ready, you can test your project locally:
 
 You can monitor the execution by opening http://localhost:6067/mon/stats/ on the host on which you've started the **monitor-agent**.
 
+## Kafka
+
+For development and testing purposes, you can use Kafka in Docker:
+
+``docker run -d -p 9092:9092 --name broker apache/kafka:3.9.1``
+
 ## Demo project
 
 You can download and directly run a demonstration project: https://github.com/ilbsm/ksa_demo
+
+## Limitations
+
+Due to the underlying libraries (faust-streaming and it's dependency: aiokafka) currently Kafka 4.0 is not supported.
 
 ## Cite
 
