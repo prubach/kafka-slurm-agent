@@ -80,6 +80,6 @@ Due to the underlying libraries (faust-streaming and it's dependency: aiokafka) 
 
 If you use Kafka Slurm Agent in your research, please cite:
 
-[Applying Large-Scale Distributed Computing to Structural Bioinformatics -- Bridging Legacy HPC Clusters With Big Data Technologies Using kafka-slurm-agent](https://arxiv.org/abs/2503.14806)
+[Applying Large-Scale Distributed Computing to Structural Bioinformatics -- Bridging Legacy HPC Clusters with Big Data Technologies using kafka-slurm-agent](https://dl.acm.org/doi/10.1145/3708035.3736007)
 
 You can also read more about the motivation and applications of this tool.  
