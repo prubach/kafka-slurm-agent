@@ -8,7 +8,7 @@ from pydoc import locate
 from kafka_slurm_agent.kafka_modules import config, HeartbeatSender
 from concurrent.futures import ThreadPoolExecutor
 
-app = faust.App(config['WORKER_NAME'] + '_worker_agent',
+app = faust.App(config.get('WORKER_AGENT_APP_NAME', config['WORKER_NAME'] + '_worker_agent'),
                 group_id=1,
                 broker='kafka://' + config['BOOTSTRAP_SERVERS'],
                 broker_credentials=config['KAFKA_FAUST_BROKER_CREDENTIALS'],

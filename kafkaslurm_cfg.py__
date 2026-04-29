@@ -27,11 +27,18 @@ TOPIC_STATUS = f'{TOPIC_PREFIX}-jobs'
 TOPIC_DONE = f'{TOPIC_PREFIX}-done'
 TOPIC_ERROR = f'{TOPIC_PREFIX}-error'
 TOPIC_HEARTBEAT = f'{TOPIC_PREFIX}-heartbeat'
+
 CLUSTER_AGENT_NEW_GROUP = f'{TOPIC_PREFIX}_agent_new' # This group must be the same for all agents that should receive the jobs for the same project
 MONITOR_AGENT_NEW_GROUP = socket.gethostname() + '_monitor_agent_new' # you can have multiple monitors,
 # if the groups are different for them, then every one will obtain every result/status/error,
 # if you set it to the same value then the results/statuses/errors will be distributed between all monitors randomly
 HEARTBEAT_INTERVAL = 300.0 # in seconds, set to 0 to disable heartbeat - works for all Kafka consumers
+
+# Change the Faust application name - important if you want to run multiple cluster/worker/monitor agents on the same Kafka cluster in the same folder, otherwise they will interfere with each other
+# CLUSTER_AGENT_APP_NAME = CLUSTER_NAME + '_cluster_agent'
+# WORKER_AGENT_APP_NAME = WORKER_AGENT_NEW_GROUP + '_worker_agent'
+# MONITOR_AGENT_APP_NAME = MONITOR_AGENT_NEW_GROUP + '_monitor_agent'
+
 
 # Kafka advanced options
 #from kafka.coordinator.assignors.range import RangePartitionAssignor

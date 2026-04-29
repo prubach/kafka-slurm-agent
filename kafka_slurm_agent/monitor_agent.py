@@ -5,7 +5,7 @@ from kafka_slurm_agent.kafka_modules import setupLogger, config
 from kafka_slurm_agent.command import Command
 #from concurrent.futures import ThreadPoolExecutor
 
-app = faust.App(config['MONITOR_AGENT_NEW_GROUP'] if 'MONITOR_AGENT_NEW_GROUP' in config else socket.gethostname() + '_monitor_agent_new',
+app = faust.App(config.get('MONITOR_AGENT_APP_NAME', config['MONITOR_AGENT_NEW_GROUP'] if 'MONITOR_AGENT_NEW_GROUP' in config else socket.gethostname() + '_monitor_agent_new'),
                 group_id=1,
                 broker='kafka://' + config['BOOTSTRAP_SERVERS'],
                 broker_credentials=config['KAFKA_FAUST_BROKER_CREDENTIALS'],
