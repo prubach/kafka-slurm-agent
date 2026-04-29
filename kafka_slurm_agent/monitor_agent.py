@@ -21,7 +21,7 @@ done_topic = app.topic(config['TOPIC_DONE'], partitions=1)
 error_topic = app.topic(config['TOPIC_ERROR'], partitions=1)
 new_topic = app.topic(config['TOPIC_NEW'])
 heartbeat_topic = app.topic(config['TOPIC_HEARTBEAT'])
-job_status = app.Table('job_status', default='')
+job_status = app.Table(config['TOPIC_PREFIX'] + 'job_status', default='')
 #stats_thread_pool = ThreadPoolExecutor(max_workers=1)
 
 @app.agent(jobs_topic)

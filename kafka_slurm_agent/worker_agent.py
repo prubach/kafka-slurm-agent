@@ -19,7 +19,7 @@ app = faust.App(config.get('WORKER_AGENT_APP_NAME', config['WORKER_NAME'] + '_wo
                 topic_partitions=1)
 #store='rocksdb://',
 jobs_topic = app.topic(config['TOPIC_STATUS'], partitions=1)
-job_status = app.Table('job_status', default='')
+job_status = app.Table(config['TOPIC_PREFIX'] + 'job_status', default='')
 
 thread_pool = ThreadPoolExecutor(max_workers=1)
 sys.path.append(os.getcwd())

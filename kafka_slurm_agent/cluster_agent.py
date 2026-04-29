@@ -18,7 +18,7 @@ app = faust.App(config.get('CLUSTER_AGENT_APP_NAME', config['CLUSTER_NAME'] + '_
                 topic_partitions=1)
 #store='rocksdb://',
 jobs_topic = app.topic(config['TOPIC_STATUS'], partitions=1)
-job_status = app.Table('job_status', default='')
+job_status = app.Table(config['TOPIC_PREFIX'] + '_job_status', default='')
 
 thread_pool = ThreadPoolExecutor(max_workers=1)
 sys.path.append(os.getcwd())

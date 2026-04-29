@@ -58,6 +58,7 @@ config_defaults = {
     'DELAY_BETWEEN_SUBMIT_MS': 0,
     'SLURM_JOB_TYPE': 'cpu',
     'SLURM_RESOURCES_REQUIRED': 1,
+    'TOPIC_PREFIX': ''
 }
 
 
