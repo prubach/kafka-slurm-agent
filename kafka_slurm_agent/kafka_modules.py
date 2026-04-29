@@ -71,20 +71,21 @@ class ConfigLoader:
         return self.config
 
     def load_config(self):
+        KSA_CONFIG_FILE = os.getenv("KSA_CONFIG_FILE", CONFIG_FILE)
         rootpath = expanduser('~')
-        if not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)):
+        if not os.path.isfile(os.path.join(rootpath, KSA_CONFIG_FILE)):
             rootpath = os.path.abspath(os.path.dirname(__file__))
-            while not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)) and rootpath != os.path.abspath(os.sep):
+            while not os.path.isfile(os.path.join(rootpath, KSA_CONFIG_FILE)) and rootpath != os.path.abspath(os.sep):
                 rootpath = os.path.abspath(os.path.dirname(rootpath))
-        if not os.path.isfile(os.path.join(rootpath, CONFIG_FILE)):
+        if not os.path.isfile(os.path.join(rootpath, KSA_CONFIG_FILE)):
             print(
                 '{} configuration file not found in home folder or any parent folders of where the app is installed!'.format(
-                    CONFIG_FILE))
+                    KSA_CONFIG_FILE))
             sys.exit(-1)
         config_defaults['PREFIX'] = rootpath
         config_defaults['SHARED_TMP'] = os.path.join(rootpath, 'tmp')
         self.config = Config(root_path=rootpath, defaults=config_defaults)
-        self.config.from_pyfile(CONFIG_FILE)
+        self.config.from_pyfile(KSA_CONFIG_FILE)
 
 config = ConfigLoader().get()
 

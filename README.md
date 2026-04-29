@@ -33,6 +33,7 @@ This will generate the following files:
 
 ### Configuration
 Please adjust the config file.
+The config file name can be also injected using the ``KSA_CONFIG_FILE`` environment variable 
 1. Modify the configuration of the connection to **Apache Kafka**. The default one assumes that kafka is running on *localhost* and default port (*9092*) and doesn't use authentication or SSL.
      In the comments you will find parameters necessary to connect to **Kafka** configured using SASL and plaintext password. If you use this type of connection please uncomment also the line that starts with:
 ``# KAFKA_FAUST_BROKER_CREDENTIALS``
