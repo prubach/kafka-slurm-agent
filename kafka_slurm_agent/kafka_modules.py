@@ -578,7 +578,7 @@ class ClusterAgent(WorkingAgent):
             msg['ExecutorType'] = 'CL_AGNT'
         cmd, time_out = self.get_runner_batch_cmd(input_job_id, script, msg)
         slurm_job_id = slurm.sbatch(cmd)
-        self.logger.info('Submitted: {}, id: {}'.format(input_job_id, slurm_job_id))
+        self.logger.info('Submitted {}({}): {}, id: {}'.format(self.job_type, self.res_reqs, input_job_id, slurm_job_id))
         return slurm_job_id
 
     def slurm_check_jobs_waiting(self):
