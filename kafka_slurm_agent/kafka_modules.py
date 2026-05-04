@@ -34,7 +34,7 @@ CONFIG_FILE = 'kafkaslurm_cfg.py'
 config_defaults = {
     'CLUSTER_NAME': 'my_cluster',
     'CLUSTER_JOB_NAME_SUFFIX': '_KSA',
-    'CLUSTER_SUBMIT_WHEN_WAITING': 1,
+    'CLUSTER_SUBMIT_AT_ONCE': 1,
     'POLL_INTERVAL': 30.0,
     'BOOTSTRAP_SERVERS': 'localhost:9092',
     'MONITOR_AGENT_URL': 'http://localhost:6066/',
@@ -471,8 +471,8 @@ class ClusterAgent(WorkingAgent):
             self.logger.info('Excluded nodes: {}/{}'.format(config['SLURM_EXCLUDE'], ClusterAgent.slurm_get_idle_excluded_cpus()))
         w = self.slurm_check_jobs_waiting()
         self.logger.info('Waiting: {}'.format(w))
-        if w <= config['CLUSTER_SUBMIT_WHEN_WAITING']:
-            poll_num = max(math.floor(free / self.res_reqs), 1) if not self.is_change_res_job_type else 1
+        if w <= config['CLUSTER_SUBMIT_AT_ONCE']:
+            poll_num = max(math.floor(free / self.res_reqs), config['CLUSTER_SUBMIT_AT_ONCE']) if not self.is_change_res_job_type else 1
             self.logger.info('Polling: {}'.format(poll_num))
             new_jobs = self.consumer.poll(max_records=poll_num,
                                           timeout_ms=2000)
