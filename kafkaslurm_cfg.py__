@@ -55,7 +55,7 @@ HEARTBEAT_INTERVAL = 300.0 # in seconds, set to 0 to disable heartbeat - works f
 #
 # MONITOR_ONLY_DO_NOT_SUBMIT = True # set this to make the cluster agent only monitor existing jobs
 CLUSTER_JOB_NAME_SUFFIX = '_KSA' # All jobs on the slurm cluster will have this suffix, this is important for cluster agent to be able to identify jobs that it should manage
-CLUSTER_SUBMIT_WHEN_WAITING = 1 # Submit new jobs when this number of jobs are waiting
+CLUSTER_SUBMIT_AT_ONCE = 1 # Submit new jobs when this number of jobs are waiting
 CLUSTER_JOB_TIMEOUT = 360000 # in seconds # default timeout for jobs, the timeout can be also specified per job in the job configuration
 #POLL_INTERVAL = 20.0, # How often to poll for new jobs
 SLURM_PARTITION ='all' # Name of Slurm partition to submit jobs to
