@@ -459,6 +459,7 @@ class ClusterAgent(WorkingAgent):
         self.job_name_suffix = config['CLUSTER_JOB_NAME_SUFFIX']
         self.logger = setupLogger(config['LOGS_DIR'], "clusteragent_{}".format(socket.gethostname()))
         self.logger.info('Cluster Agent Started')
+        self.is_change_res_job_type = True
         self.job_type = config['SLURM_JOB_TYPE']
         self.res_reqs = config['SLURM_RESOURCES_REQUIRED']
 
@@ -471,8 +472,9 @@ class ClusterAgent(WorkingAgent):
         w = self.slurm_check_jobs_waiting()
         self.logger.info('Waiting: {}'.format(w))
         if w <= config['CLUSTER_SUBMIT_WHEN_WAITING']:
-            self.logger.info('Polling: {}'.format(max(math.floor(free / self.res_reqs), 1)))
-            new_jobs = self.consumer.poll(max_records=max(math.floor(free / self.res_reqs), 1),
+            poll_num = max(math.floor(free / self.res_reqs), 1) if not self.is_change_res_job_type else 1
+            self.logger.info('Polling: {}'.format(poll_num))
+            new_jobs = self.consumer.poll(max_records=poll_num,
                                           timeout_ms=2000)
             self.logger.info('Got {} new jobs'.format(len(new_jobs)))
             for job in new_jobs.items():
@@ -482,7 +484,15 @@ class ClusterAgent(WorkingAgent):
                     if config['DELAY_BETWEEN_SUBMIT_MS'] > 0:
                         time.sleep(0.001*config['DELAY_BETWEEN_SUBMIT_MS'])
                     #msg = ast.literal_eval(job.value().decode('utf-8'))
+                    old_job_type = self.job_type
                     self.job_type = el.value['slurm_pars']['JOB_TYPE'] if 'JOB_TYPE' in el.value['slurm_pars'] else config['SLURM_JOB_TYPE']
+                    old_res_reqs = self.res_reqs
+                    self.res_reqs = el.value['slurm_pars']['SLURM_RESOURCES_REQUIRED'] if 'SLURM_RESOURCES_REQUIRED' in el.value['slurm_pars'] else config['SLURM_RESOURCES_REQUIRED']
+                    if self.job_type==old_job_type and self.res_reqs==old_res_reqs:
+                        self.is_change_res_job_type = False
+                    else:
+                        self.logger.info('Job type/resources change from: {}={} to {}={}'.format(old_job_type, old_res_reqs, self.job_type, self.res_reqs))
+                        self.is_change_res_job_type = True
                     self.res_reqs = el.value['slurm_pars']['SLURM_RESOURCES_REQUIRED'] if 'SLURM_RESOURCES_REQUIRED' in el.value['slurm_pars'] else config['SLURM_RESOURCES_REQUIRED']
                     job_id = self.submit_slurm_job(el.value['input_job_id'], el.value['script'], el.value['slurm_pars'], el.value)
                     self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', job_id)
