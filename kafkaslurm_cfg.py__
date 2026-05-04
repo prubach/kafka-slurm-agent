@@ -60,10 +60,9 @@ CLUSTER_JOB_TIMEOUT = 360000 # in seconds # default timeout for jobs, the timeou
 #POLL_INTERVAL = 20.0, # How often to poll for new jobs
 SLURM_PARTITION ='all' # Name of Slurm partition to submit jobs to
 # (Optional) - default job parameters, they can be set in the job configuration
-# SLURM_MEM = '15gb'            # MEMORY REQUIRED FOR SLURM JOB - defaults
 # SLURM_EXCLUDE = 'node1'       # Exclude some nodes from submission (optional)
-# SLURM_JOB_TYPE = 'gpu'  # GPU, CPU
-# SLURM_RESOURCES_REQUIRED = 1  # #OF CPUS OR GPUS PER JOB
+# SLURM_JOB_TYPE = 'gpu'  # GPU, CPU - now this is determined by the previous job's type
+# SLURM_RESOURCES_REQUIRED = 1  # #OF CPUS OR GPUS PER JOB - now this is determined from the previous job's parameters
 
 
 # Worker Agent (Individual Workstations)
