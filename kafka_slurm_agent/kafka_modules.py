@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os.path
+import re
 import socket
 import sys
 import tempfile
@@ -33,6 +34,7 @@ CONFIG_FILE = 'kafkaslurm_cfg.py'
 config_defaults = {
     'CLUSTER_NAME': 'my_cluster',
     'CLUSTER_JOB_NAME_SUFFIX': '_KSA',
+    'CLUSTER_SUBMIT_WHEN_WAITING': 1,
     'POLL_INTERVAL': 30.0,
     'BOOTSTRAP_SERVERS': 'localhost:9092',
     'MONITOR_AGENT_URL': 'http://localhost:6066/',
@@ -457,18 +459,20 @@ class ClusterAgent(WorkingAgent):
         self.job_name_suffix = config['CLUSTER_JOB_NAME_SUFFIX']
         self.logger = setupLogger(config['LOGS_DIR'], "clusteragent_{}".format(socket.gethostname()))
         self.logger.info('Cluster Agent Started')
+        self.job_type = config['SLURM_JOB_TYPE']
+        self.res_reqs = config['SLURM_RESOURCES_REQUIRED']
 
     def check_queue_submit(self):
-        func_name = 'self.slurm_get_idle_' + self.get_job_type(None) + 's'
+        func_name = 'self.slurm_get_idle_' + self.job_type + 's'
         free = eval(func_name + "()")
-        self.logger.info('Free {}s: {}'.format(config['SLURM_JOB_TYPE'].upper(), free))
+        self.logger.info('Free {}s: {}'.format(self.job_type.upper(), free))
         if 'SLURM_EXCLUDE' in config and config['SLURM_EXCLUDE'] != '':
             self.logger.info('Excluded nodes: {}/{}'.format(config['SLURM_EXCLUDE'], ClusterAgent.slurm_get_idle_excluded_cpus()))
         w = self.slurm_check_jobs_waiting()
         self.logger.info('Waiting: {}'.format(w))
-        if w <= 1:
-            self.logger.info('Polling: {}'.format(max(math.floor(free / config['SLURM_RESOURCES_REQUIRED']), 1)))
-            new_jobs = self.consumer.poll(max_records=max(math.floor(free / config['SLURM_RESOURCES_REQUIRED']), 1),
+        if w <= config['CLUSTER_SUBMIT_WHEN_WAITING']:
+            self.logger.info('Polling: {}'.format(max(math.floor(free / self.res_reqs), 1)))
+            new_jobs = self.consumer.poll(max_records=max(math.floor(free / self.res_reqs), 1),
                                           timeout_ms=2000)
             self.logger.info('Got {} new jobs'.format(len(new_jobs)))
             for job in new_jobs.items():
@@ -478,6 +482,8 @@ class ClusterAgent(WorkingAgent):
                     if config['DELAY_BETWEEN_SUBMIT_MS'] > 0:
                         time.sleep(0.001*config['DELAY_BETWEEN_SUBMIT_MS'])
                     #msg = ast.literal_eval(job.value().decode('utf-8'))
+                    self.job_type = el.value['slurm_pars']['JOB_TYPE'] if 'JOB_TYPE' in el.value['slurm_pars'] else config['SLURM_JOB_TYPE']
+                    self.res_reqs = el.value['slurm_pars']['SLURM_RESOURCES_REQUIRED'] if 'SLURM_RESOURCES_REQUIRED' in el.value['slurm_pars'] else config['SLURM_RESOURCES_REQUIRED']
                     job_id = self.submit_slurm_job(el.value['input_job_id'], el.value['script'], el.value['slurm_pars'], el.value)
                     self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
@@ -591,11 +597,9 @@ class ClusterAgent(WorkingAgent):
     def slurm_get_idle_gpus(state='idle'):
         _, res, _ = ClusterAgent.run_command('sinfo -o "%G %.3D %.6t %P" | grep ' + state + ' | grep gpu | grep ' + config['SLURM_PARTITION'] + "| awk '{print $1,$2}'")
         if res:
-            lines = res.splitlines()
-            gpus = 0
-            for line in lines:
-                els = line.strip().split(" ")
-                gpus += int(els[0].split(":")[1].strip())*int(els[1].strip())
+            pattern = re.compile(r'gpu:(?:[^:]+:)?(\d+)\s+(\d+)')
+            results = [tuple(map(int, m)) for m in pattern.findall(res)]
+            gpus = sum(a * b for a, b in results)
             return gpus
         else:
             return 0
