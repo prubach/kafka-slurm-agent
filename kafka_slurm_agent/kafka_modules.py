@@ -498,21 +498,64 @@ class ClusterAgent(WorkingAgent):
                     self.stat_send.send(el.value['input_job_id'], 'SUBMITTED', job_id)
             self.consumer.commit()
 
+
+    # # Example usage
+    # lines = [
+    #     "A0A7W8Z867_MPO 225343 (Nodes required for job are DOWN, DRAINED or reserved for jobs in higher priority partitions) 0:00 prubach",
+    #     "A0A261GN16_MPO 225344 (Priority) 0:00 prubach"
+    # ]
+
+
     def check_job_statuses(self):
         cmd = 'squeue -o "%j %i %R %M %u" | grep {} | grep {}'.format(getpass.getuser(), self.job_name_suffix)
         comd = Command(cmd)
         comd.run(20)
         res = comd.getOut()
         statuses = {}
+
+        # Pattern 1: with reason in parentheses
+        pattern_reason = re.compile(
+            r'^(?P<job>\S+)\s+'
+            r'(?P<jobid>\d+)\s+'
+            r'\((?P<reason>.*?)\)\s+'
+            r'(?P<time>\S+)\s+'
+            r'(?P<user>\S+)'
+        )
+
+        # Pattern 2: with node/partition instead of reason
+        pattern_node = re.compile(
+            r'^(?P<job>\S+)\s+'
+            r'(?P<jobid>\d+)\s+'
+            r'(?P<node>\S+)\s+'
+            r'(?P<time>\S+)\s+'
+            r'(?P<user>\S+)'
+        )
+
+        def parse_line(line):
+            m = pattern_reason.match(line)
+            if m:
+                d = m.groupdict()
+                d['node'] = None
+            else:
+                m = pattern_node.match(line)
+                if not m:
+                    return None
+                d = m.groupdict()
+                d['reason'] = None
+
+            #d['jobid'] = int(d['jobid'])
+            return d
+
         if res:
             for line in res.splitlines():
                 # 36315_AF2 596717 troll-8 6:53:54 prubach
-                els = line.split(" ")
-                input_job_id = ''.join(els[0][:-len(self.job_name_suffix)])
-                slurm_job_id = ''.join(els[1])
-                node = ''.join(els[2])
-                run_time = ''.join(els[3])
-                statuses[input_job_id] = (int(slurm_job_id), 'WAITING' if node.startswith('(') else 'RUNNING', node, self.parse_run_time(run_time))
+                parsed = parse_line(line)
+                input_job_id = parsed['job'][:-len(self.job_name_suffix)]
+                slurm_job_id = parsed['jobid']
+                run_time = parsed['time']
+                node = parsed['node']
+                reason = parsed['reason']
+                statuses[input_job_id] = (int(slurm_job_id), 'WAITING' if reason else 'RUNNING', node, self.parse_run_time(run_time))
         return statuses
 
     @staticmethod
