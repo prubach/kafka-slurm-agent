@@ -1,4 +1,4 @@
-![Kafka Slurm Agent logo](https://github.com/prubach/kafka-slurm-agent/raw/master/assets/kafka-slurm-agent_logo.png | width=80)
+![Kafka Slurm Agent logo](https://github.com/prubach/kafka-slurm-agent/raw/master/assets/kafka-slurm-agent_logo_mini.png)
 
 # Kafka Slurm Agent
 
