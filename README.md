@@ -1,3 +1,5 @@
+![Kafka Slurm Agent logo](/assets/kafka-slurm-agent_logo.png)
+
 # Kafka Slurm Agent
 
 The Kafka Slurm Agent is a distributed computing and stream processing engine 
