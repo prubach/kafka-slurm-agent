@@ -19,7 +19,7 @@ from urllib.error import URLError
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.coordinator.assignors.range import RangePartitionAssignor
 from kafka.coordinator.assignors.roundrobin import RoundRobinPartitionAssignor
-from kafka.errors import NoBrokersAvailable
+from kafka.errors import KafkaTimeoutError
 from simple_slurm import Slurm
 import getpass
 from os.path import expanduser
@@ -52,7 +52,7 @@ config_defaults = {
     'KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS': 2000,
     'KAFKA_BROKER_MAX_POLL_RECORDS': 20,
     'KAFKA_CONSUMER_MAX_FETCH_SIZE': 1024 ** 2,
-    'KAFKA_TRANSACTION_TIMEOUT_MS': 120000, # maximum amount of time a transaction can take before it is aborted by the broker. - unsupported by kafka-python-ng 2.2.2
+    'KAFKA_TRANSACTION_TIMEOUT_MS': 120000, # maximum amount of time a Faust transaction can take before it is aborted by the broker.
     'REQUEST_TIMEOUT_MS': 60000, # maximum amount of time a transaction can take before it is aborted by the broker.
     'MONITOR_HEARTBEAT_INTERVAL_MS': 3000,
     'MONITOR_ONLY_DO_NOT_SUBMIT': False,
@@ -177,7 +177,7 @@ class KafkaSender:
         if not producer:
             try:
                 self.producer = self.init_producer()
-            except NoBrokersAvailable as e:
+            except KafkaTimeoutError:
                 time.sleep(2)
                 self.producer = self.init_producer()
         else:
@@ -192,7 +192,6 @@ class KafkaSender:
                                       sasl_plain_password=config['KAFKA_PASSWORD'],
                                       value_serializer=lambda v: json.dumps(v).encode('utf-8'),
                                       request_timeout_ms=config['REQUEST_TIMEOUT_MS'])
-                                      #transaction_timeout_ms=config['KAFKA_TRANSACTION_TIMEOUT_MS'])
 
 
 class StatusSender(KafkaSender):

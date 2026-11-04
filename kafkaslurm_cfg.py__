@@ -47,7 +47,7 @@ HEARTBEAT_INTERVAL = 300.0 # in seconds, set to 0 to disable heartbeat - works f
 # KAFKA_CONSUMER_HEARTBEAT_INTERVAL_MS = 2000,
 # KAFKA_BROKER_MAX_POLL_RECORDS = 20
 # KAFKA_CONSUMER_MAX_FETCH_SIZE = 1024 ** 2,
-# KAFKA_TRANSACTION_TIMEOUT_MS = 120000 # maximum amount of time a transaction can take before it is aborted by the broker. - unsupported by kafka-python-ng 2.2.2
+# KAFKA_TRANSACTION_TIMEOUT_MS = 120000 # maximum amount of time a Faust transaction can take before it is aborted by the broker.
 # REQUEST_TIMEOUT_MS = 60000, # maximum amount of time a transaction can take before it is aborted by the broker.
 
 
@@ -83,5 +83,4 @@ MONITOR_AGENT_CONTEXT_PATH ='mon/' # Monitor agent context_path i.e. if set to m
 #BOOTSTRAP_SERVERS_LOCAL = 'localhost:9092'
 #KAFKA_HOME = '/opt/kafka'
 # /
-
 
