@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="kafka_slurm_agent",
-    version='1.5.0',
+    version='1.5.1',
     author="Paweł Rubach",
     author_email="pawel.rubach@gmail.com",
     description="The Kafka Slurm Agent is a distributed computing and stream processing engine "
@@ -21,6 +21,8 @@ setup(
     url="https://github.com/prubach/kafka-slurm-agent",
     packages=find_packages(),
     #package_data={
+    #    "kafka_slurm_agent": ["*.py"],
+    #},
     data_files={
         "kafkaslurm_cfg.py__",
         "monitor_agent",
@@ -33,16 +35,15 @@ setup(
     install_requires=[
         'simple-slurm', 'kafka-python>=3.0', 'psutil>=5.6.6', 'python-math', 'faust-streaming', 'werkzeug', 'wrapt-timeout-decorator'
     ],
-    python_requires='>=3.8',
+    python_requires='>=3.10',
     classifiers=[
         "Programming Language :: Python :: 3",
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
         'Programming Language :: Python :: 3.14',
+        'Programming Language :: Python :: 3.15',
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent"
     ],
