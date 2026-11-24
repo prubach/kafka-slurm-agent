@@ -77,7 +77,7 @@ You can download and directly run a demonstration project: https://github.com/il
 
 ## Limitations
 
-Due to the underlying libraries (faust-streaming and it's dependency: aiokafka) currently Kafka 4.0 is not supported.
+As of November 2026 Kafka 4.x is now supported via aiokafka 0.15 and kafka-python 3.0.13 and faust-streaming 0.15.4. Please make sure to use the latest version of kafka-slurm-agent.
 
 ## Cite
 
